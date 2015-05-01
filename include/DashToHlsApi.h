@@ -14,18 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _DASH2HLS_DASHTOHLSAPI_H_
-#define _DASH2HLS_DASHTOHLSAPI_H_
-
-// TODO(justsomeguy) Rename this file to be DashToHlsApi.h.
+#ifndef _UDT_DASH_TRANSMUXER_DASHTOHLSAPI_H_
+#define _UDT_DASH_TRANSMUXER_DASHTOHLSAPI_H_
 
 // C API for converting DASH content to HLS.
 //
 // Even though the internal code uses C++ the API exposed is pure C.  This
 // eases adoption by iOS and MacOS developers used to Objective-C.
 //
-// DashToHls converts a subset of possible DASH content to HLS.  The current
-// subset is geared towards GooglePlay DASH formats, namely H.264 content in
+// UDT converts a subset of possible DASH content other formats. This API
+// exposes the ability to convert DASH to HLS.  The current subset is geared
+// towards GooglePlay DASH formats, namely H.264 content in
 // fragmented mp4.
 //
 // Files are required to have a sidx box containing the locations to each
@@ -33,9 +32,18 @@ limitations under the License.
 // file, usually in the first few k, but that is not guaranteed.
 //
 // Each moof/mdat will be converted into exactly one HLS .ts segment.
-//
-
 // Example is included in ../library/player.
+//
+// CENC Reference:  http://www.w3.org/TR/encrypted-media/cenc-format.html
+// Format Reference: http://goo.gl/vNe3qm
+// box  = Field in Header
+// mdat = Media Data Boxes
+// moof = Movie Fragment
+// saiz = SampleAuxiliaryInformationSizesBox
+// saio = SampleAuxiliaryInformationOffsetsBox
+// tenc = Track Encryption Box
+// tfdt = Track Fragment Decode Time Box
+// trun = Track Fragment Run Boxes
 
 #include <stdint.h>
 #include <unistd.h>
@@ -64,11 +72,11 @@ struct DashToHlsSession;
 // The location of one moof/mdat location.  The start_offset_ is from the
 // beginning of the file.
 struct DashToHlsSegment {
-  uint32_t start_time;
-  uint32_t duration;
+  uint64_t start_time;
+  uint64_t duration;
   uint32_t timescale;
-  size_t location;
-  size_t length;
+  uint64_t location;
+  uint64_t length;
 };
 
 // The list of all moof/mdat locations.  Memory is owned by the
@@ -97,6 +105,16 @@ DashToHlsStatus DashToHls_ParseDash(struct DashToHlsSession* session,
                                    const uint8_t* bytes, size_t length,
                                    struct DashToHlsIndex** index);
 
+// Parses a sidx box in |bytes| and |length| and return the
+// DashToHlsSegments in |index|.
+//
+// DashToHlsSegment.location are relative to 0. So you'll need to add the
+// startOffset of the sidx.
+DashToHlsStatus DashToHls_ParseSidx(struct DashToHlsSession* session,
+                                    const uint8_t* bytes,
+                                    uint64_t length,
+                                    struct DashToHlsIndex** index);
+
 // The pssh is usually handled out of band.  To simplify things this call
 // only extracts a pssh and calls the pssh callback.
 //
@@ -104,7 +122,7 @@ DashToHlsStatus DashToHls_ParseDash(struct DashToHlsSession* session,
 // the pssh handler will be expected to ignore the request as already
 // completed.
 DashToHlsStatus DashToHls_ParseLivePssh(struct DashToHlsSession* session,
-                                        const uint8_t* bytes, size_t length);
+                                        const uint8_t* bytes, uint64_t length);
 
 // Parses a DASH file from the beginning and generates a single TS segment.
 // Live DASH does not use a sidx and includes the the moov atom in each
@@ -112,8 +130,8 @@ DashToHlsStatus DashToHls_ParseLivePssh(struct DashToHlsSession* session,
 // to release the segment.
 DashToHlsStatus DashToHls_ParseLive(struct DashToHlsSession* session,
                                     const uint8_t* bytes,
-                                    size_t length,
-                                    size_t segment_number,
+                                    uint64_t length,
+                                    uint64_t segment_number,
                                     const uint8_t** hls_segment,
                                     size_t* hls_length);
 
@@ -128,6 +146,17 @@ DashToHlsStatus DashToHls_ConvertDashSegment(struct DashToHlsSession* session,
                                              size_t dash_segment_size,
                                              const uint8_t** hls_segment,
                                              size_t* hls_length);
+
+// Takes the actual moof/mdata data in |moof_mdat| and converts it to an HLS ts
+// segment. Like DashToHls_ConvertDashSegment, the |segment_number| is owned
+// by |session| and is freed in DashToHls_ReleaseHlsSegment.
+DashToHlsStatus DashToHls_ConvertDashSegmentData(
+    struct DashToHlsSession* session,
+    uint32_t segment_number,
+    const uint8_t* moof_mdat,
+    size_t moof_mdat_size,
+    const uint8_t** hls_segment,
+    size_t* hls_length);
 
 // Optional call to free up some memory without destroying the entire
 // |session|.
@@ -192,4 +221,4 @@ void DashToHls_PrettyPrint(struct DashToHlsSession* session);
 #ifdef __cplusplus
 };
 #endif
-#endif  // _DASH2HLS_DASHTOHLSAPI_H_
+#endif  // _UDT_DASH_TRANSMUXER_DASHTOHLSAPI_H_
