@@ -53,10 +53,10 @@ class Box {
   // The |start_position| is where in the stream this Box starts.
   explicit Box(uint64_t start_position);
 
-  bool DoneParsing();
+  bool DoneParsing() const;
 
   // Minimum number of bytes needed to call Parse.
-  size_t BytesNeededToContinue();
+  size_t BytesNeededToContinue() const;
   // Handle the next phase of parsing returning the number of bytes parsed.
   // length must be at least as long as BytesNeededToContinue.
   size_t Parse(const uint8_t* buffer, size_t length);

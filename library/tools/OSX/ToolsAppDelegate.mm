@@ -59,9 +59,13 @@ void sConverterCallback(const char* callbackString) {
   }
   DashToHlsIndex* index;
 
-  if (DashToHls_ParseDash(session,
+  switch (DashToHls_ParseDash(session,
                           reinterpret_cast<const uint8_t*>([mp4Data bytes]),
-                          [mp4Data length], &index) != kDashToHlsStatus_OK) {
+                              [mp4Data length], &index)) {
+    case kDashToHlsStatus_OK:
+    case kDashToHlsStatus_ClearContent:
+      break;
+    default:
     return;
   }
   for (uint8_t segment = 0; segment < index->index_count; ++segment) {
@@ -82,6 +86,7 @@ void sConverterCallback(const char* callbackString) {
       [hlsData writeToURL:outputFile atomically:YES];
     } else {
       NSLog(@"Failed to parse segment error %d", status);
+      break;
     }
   }
   DashToHls_ReleaseSession(session);

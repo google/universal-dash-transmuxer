@@ -73,6 +73,9 @@ class DashParser {
     current_stream_position_ = stream_position;
   }
 
+  void set_default_iv_size(size_t size) {default_iv_size_ = size;}
+  size_t get_default_iv_size() const {return default_iv_size_;}
+
   // Parses the next |length| bytes of |buffer|.  Parse expects repeated calls
   // to not skip any data.  Memory pointed to by |buffer| is never needed
   // after Parse returns and may be freed.
@@ -118,6 +121,7 @@ class DashParser {
   std::vector<Box> boxes_;
   Box* current_box_;
   uint64_t current_stream_position_;
+  size_t default_iv_size_;
 };
 
 }  // namespace dash2hls

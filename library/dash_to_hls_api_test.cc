@@ -121,7 +121,7 @@ TEST(DashToHlsApi, ParseDash) {
   bytes_read = fread(buffer, 1, kDashHeaderRead, file);
   ASSERT_EQ(kDashHeaderRead, bytes_read);
   DashToHlsIndex* index;
-  ASSERT_EQ(kDashToHlsStatus_OK, DashToHls_ParseDash(session, buffer,
+  ASSERT_EQ(kDashToHlsStatus_ClearContent, DashToHls_ParseDash(session, buffer,
                                                      bytes_read, &index));
   const uint8_t* hls_segment;
   size_t hls_length;
@@ -156,7 +156,7 @@ TEST(DashToHlsApi, ParseAudioDash) {
   bytes_read = fread(buffer, 1, kDashHeaderRead, file);
   ASSERT_EQ(kDashHeaderRead, bytes_read);
   DashToHlsIndex* index;
-  ASSERT_EQ(kDashToHlsStatus_OK, DashToHls_ParseDash(session, buffer,
+  ASSERT_EQ(kDashToHlsStatus_ClearContent, DashToHls_ParseDash(session, buffer,
                                                      bytes_read, &index));
   const uint8_t* hls_segment;
   size_t hls_length;

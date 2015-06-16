@@ -17,6 +17,7 @@ limitations under the License.
 #include <map>
 
 #include "include/DashToHlsApi.h"
+#include "library/adts/adts_out.h"
 #include "library/dash/avcc_contents.h"
 #include "library/dash/box.h"
 #include "library/dash/box_type.h"
@@ -33,7 +34,7 @@ limitations under the License.
 #include "library/dash/tfhd_contents.h"
 #include "library/dash/trun_contents.h"
 #include "library/ts/transport_stream_out.h"
-#include "library/utilities.h"
+#include "utilities.h"
 
 namespace {
 const size_t kIvSize = 16;
@@ -369,6 +370,12 @@ bool DecryptSample(const Session* session, uint32_t sample_number,
              "");
     return false;
   }
+  if (session->default_iv_size_ != kIvSize - kIvCounterOffset) {
+    DASH_LOG("Bad IV.",
+             "Unexpected default_iv_size_ size.",
+             "");
+    return false;
+  }
   uint8_t iv[kIvSize];
   size_t size = saiz->get_sizes()[sample_number];
   if ((size != 8) &&
@@ -378,19 +385,38 @@ bool DecryptSample(const Session* session, uint32_t sample_number,
              "");
     return false;
   }
-
+  const uint8_t* mdat_end = mdat->get_raw_data() + mdat->get_raw_data_length();
   const uint8_t* mdat_data = mdat->get_raw_data();
+  if (mdat_data + *saio_position + session->default_iv_size_ > mdat_end) {
+    DASH_LOG("Bad saio.",
+             "saio position would run off the end.",
+             "");
+    return false;
+  }
   memcpy(iv, mdat_data + *saio_position, session->default_iv_size_);
   memset(iv + kIvCounterOffset, 0, kIvCounterSize);
   *saio_position += session->default_iv_size_;
   size_t saio_records = 1;
   if (size > 8) {
+    if (mdat_data + *saio_position + sizeof(uint16_t) > mdat_end) {
+      DASH_LOG("Bad saio.",
+               "saio position would run off the end.",
+               "");
+      return false;
+    }
     saio_records = ntohsFromBuffer(mdat_data + *saio_position);
     *saio_position += sizeof(uint16_t);
   }
 
   const SaizContents::SaizRecord* record = reinterpret_cast<
       const SaizContents::SaizRecord*>(mdat_data + *saio_position);
+  if (mdat_data + *saio_position +
+      (sizeof(SaizContents::SaizRecord) * saio_records) > mdat_end) {
+    DASH_LOG("Bad saio.",
+             "saio records are not in mdat.",
+             "");
+    return false;
+  }
   size_t encrypted_position = 0;
   size_t mdat_position = mdat_offset;
   std::vector<uint8_t> encrypted_buffer;
@@ -413,6 +439,12 @@ bool DecryptSample(const Session* session, uint32_t sample_number,
       DASH_LOG("Buffer overrun.", error_msg.c_str(), "");
       return false;
     }
+    if (encrypted_position + encrypted_bytes > sample_size) {
+      DASH_LOG("Bad saio.",
+               "Encrypted bytes cause a buffer overlow.",
+               "");
+      return false;
+    }
     memcpy(&encrypted_buffer[encrypted_position], mdat_data + mdat_position,
            encrypted_bytes);
     mdat_position += encrypted_bytes;
@@ -431,6 +463,8 @@ bool DecryptSample(const Session* session, uint32_t sample_number,
     return false;
   }
   out->resize(sample_size);
+
+  // Putting things back should not be able to cause a buffer overflow.
 
   size_t decrypted_position = 0;
   encrypted_position = 0;
@@ -477,17 +511,15 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
   ts_output->erase(ts_output->begin(), ts_output->end());
 
   TransportStreamOut ts_out;
+  AdtsOut adts_out;
   if (dash_session->is_video_) {
     ts_out.set_sps_pps(dash_session->sps_pps_);
-    ts_out.set_has_video(true);
     ts_out.set_nalu_length(dash_session->nalu_length_);
   } else {
-    ts_out.set_has_audio(true);
-    ts_out.set_audio_object_type(dash_session->audio_object_type_);
-    ts_out.set_sampling_frequency_index(
+    adts_out.set_audio_object_type(dash_session->audio_object_type_);
+    adts_out.set_sampling_frequency_index(
         dash_session->sampling_frequency_index_);
-    ts_out.set_channel_config(dash_session->channel_config_);
-    ts_out.set_audio_config(dash_session->audio_config_);
+    adts_out.set_channel_config(dash_session->channel_config_);
   }
 
   uint64_t saio_position = 0;
@@ -507,6 +539,10 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
 
   uint64_t dts = (tfdt->get_base_media_decode_time() * kDtsClock) /
       dash_session->timescale_;
+  std::vector<uint8_t> output;
+  if (!dash_session->is_video_) {
+    adts_out.AddTimestamp(dts, ts_output);
+  }
   // Complicated way to get the value that's almost always going to be 0.
   // The definition of the start of the samples is the data offset in the
   // trun plus the start of the moof after the header (sizeof(uint32_t)*2).
@@ -517,7 +553,6 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
       sizeof(uint32_t) * 2 -
       mdat->get_stream_position();
   const uint8_t* mdat_data = mdat->get_raw_data();
-  std::vector<uint8_t> output;
   size_t sample_number = 0;
   for (std::vector<TrunContents::TrackRun>::const_iterator
            iter = track_run.begin(); iter != track_run.end(); ++iter) {
@@ -551,13 +586,22 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
                          &decrypted)) {
         return kDashToHlsStatus_BadDashContents;
       }
+      if (dash_session->is_video_) {
       ts_out.ProcessSample(decrypted.data(), decrypted.size(),
                            dash_session->is_video_, sample_number == 0,
                            pts, dts, dts, duration, &output);
     } else {
+        adts_out.ProcessSample(decrypted.data(), decrypted.size(), &output);
+      }
+    } else {
+      if (dash_session->is_video_) {
       ts_out.ProcessSample(mdat_data + mdat_offset, iter->sample_size_,
                            dash_session->is_video_, sample_number == 0,
                            pts, dts, dts, duration, &output);
+      } else {
+        adts_out.ProcessSample(mdat_data + mdat_offset, iter->sample_size_,
+                               &output);
+    }
     }
     ++sample_number;
     ts_output->insert(ts_output->end(), output.begin(), output.end());

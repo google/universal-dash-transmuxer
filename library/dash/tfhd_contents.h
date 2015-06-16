@@ -32,15 +32,45 @@ class TfhdContents : public FullBoxContents {
  public:
   explicit TfhdContents(uint64_t stream_position)
       : FullBoxContents(BoxType::kBox_tfhd, stream_position) {}
+
+  bool IsBaseDataOffsetPresent() const {
+    return flags_ & kBaseDataOffsetPresentMask;
+  }
+  bool IsSampleDescriptionIndexPresent() const {
+    return flags_ & kSampleDescriptionIndexPresentMask;
+  }
+  bool IsDefaultSampleDurationPresent() const {
+    return flags_ & kDefaultSampleDurationPresentMask;
+  }
+  bool IsDefaultSampleSizePresent() const {
+    return flags_ & kDefaultSampleSizePresentMask;
+  }
+  bool IsDefaultSampleFlagsPresent() const {
+    return flags_ & kDefaultSampleFlagsPresentMask;
+  }
+
+  uint64_t get_base_data_offset() const {
+    return base_data_offset_;
+  }
+  uint32_t get_sample_description_index() const {
+    return sample_description_index_;
+  }
   uint32_t get_default_sample_duration() const {
     return default_sample_duration_;
   }
+  uint32_t get_default_sample_size() const {
+    return default_sample_size_;
+  }
+  uint32_t get_default_sample_flags() const {
+    return default_sample_flags_;
+  }
+
   virtual std::string PrettyPrint(std::string indent) const;
   virtual std::string BoxName() const {return "TrackFragmentHeader";}
 
  protected:
   static const uint32_t kBaseDataOffsetPresentMask = 0x000001;
-  static const uint32_t kSampleDecryptionIndexPresentMask = 0x000002;
+  static const uint32_t kSampleDescriptionIndexPresentMask = 0x000002;
   static const uint32_t kDefaultSampleDurationPresentMask = 0x000008;
   static const uint32_t kDefaultSampleSizePresentMask = 0x000010;
   static const uint32_t kDefaultSampleFlagsPresentMask = 0x000020;

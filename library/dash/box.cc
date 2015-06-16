@@ -25,6 +25,7 @@ limitations under the License.
 #include "library/dash/avcc_contents.h"
 #include "library/dash/box_contents.h"
 #include "library/dash/dash_parser.h"
+#include "library/dash/elst_contents.h"
 #include "library/dash/esds_contents.h"
 #include "library/dash/mdat_contents.h"
 #include "library/dash/mp4a_contents.h"
@@ -38,6 +39,7 @@ limitations under the License.
 #include "library/dash/tenc_contents.h"
 #include "library/dash/tfdt_contents.h"
 #include "library/dash/tfhd_contents.h"
+#include "library/dash/trex_contents.h"
 #include "library/dash/trun_contents.h"
 #include "library/dash/unknown_contents.h"
 #include "library/utilities.h"
@@ -51,11 +53,11 @@ Box::Box(uint64_t stream_position)
       stream_position_(stream_position) {
 }
 
-bool Box::DoneParsing() {
+bool Box::DoneParsing() const {
   return state_ == kParsed;
 }
 
-size_t Box::BytesNeededToContinue() {
+size_t Box::BytesNeededToContinue() const {
   switch (state_) {
     case kInitialState: return sizeof(uint32_t);
     case kReadingType: return sizeof(uint32_t);
@@ -97,6 +99,9 @@ void Box::CreateContentsObject() {
     case BoxType::kBox_avcC:
       contents_.reset(new AvcCContents(stream_position_));
       break;
+    case BoxType::kBox_elst:
+      contents_.reset(new ElstContents(stream_position_));
+      break;
     case BoxType::kBox_esds:
       contents_.reset(new EsdsContents(stream_position_));
       break;
@@ -137,6 +142,9 @@ void Box::CreateContentsObject() {
     case BoxType::kBox_tfhd:
       contents_.reset(new TfhdContents(stream_position_));
       break;
+    case BoxType::kBox_trex:
+      contents_.reset(new TrexContents(stream_position_));
+      break;
     case BoxType::kBox_trun:
       contents_.reset(new TrunContents(stream_position_));
       break;
@@ -157,6 +165,11 @@ size_t Box::Parse(const uint8_t* buffer, size_t length) {
     switch (state_) {
       case kInitialState:
         size_ = ntohlFromBuffer(buffer);
+        if (size_ < sizeof(uint32_t) * 2) {
+          DASH_LOG("Bad size in box.", "Box must be at least 8 bytes.",
+                   DumpMemory(buffer, length).c_str());
+          return 0;
+        }
         state_ = kReadingType;
         bytes_left -= sizeof(uint32_t);
         bytes_read_ = sizeof(uint32_t);

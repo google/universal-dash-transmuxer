@@ -33,6 +33,18 @@ class AudioSampleEntryContents : public SampleEntryContents {
   virtual std::string PrettyPrint(std::string indent) const;
   virtual std::string BoxName() const {return "AudioSampleEntry";}
 
+  uint16_t get_channel_count() const {
+    return channel_count_;
+  }
+
+  uint16_t get_sample_size() const {
+    return sample_size_;
+  }
+
+  uint32_t get_sample_rate() const {
+    return sample_rate_ >> 16;
+  }
+
  protected:
   virtual size_t Parse(const uint8_t* buffer, size_t length);
 

@@ -59,7 +59,7 @@ size_t TfhdContents::Parse(const uint8_t *buffer, size_t length) {
       base_data_offset_ = ntohllFromBuffer(ptr);
       ptr += sizeof(base_data_offset_);
     }
-    if (flags_ & kSampleDecryptionIndexPresentMask) {
+    if (flags_ & kSampleDescriptionIndexPresentMask) {
       if (!EnoughBytesToParse(ptr - buffer, sizeof(uint32_t), length)) {
         DASH_LOG((BoxName() + " too short").c_str(),
                  "Can not get sample_description_index_",
@@ -114,7 +114,7 @@ std::string TfhdContents::PrettyPrint(std::string indent) const {
   if (flags_ & kBaseDataOffsetPresentMask) {
     result += " Base Data Offset:" + PrettyPrintValue(base_data_offset_);
   }
-  if (flags_ & kSampleDecryptionIndexPresentMask) {
+  if (flags_ & kSampleDescriptionIndexPresentMask) {
     result += " Sample Description Index:" +
         PrettyPrintValue(sample_description_index_);
   }

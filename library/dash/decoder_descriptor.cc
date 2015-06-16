@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "library/dash/decoder_descriptor.h"
 
+#include "library/bit_reader.h"
 #include "library/dash/dash_parser.h"
 #include "library/utilities.h"
 
@@ -24,18 +25,17 @@ const size_t kDecoderDescriptorMinSize = 14;
 const size_t kStreamTypeOffset = 2;
 const size_t kUpStreamOffset = 1;
 const uint8_t kUpStreamMask = 0x1;
-const size_t kDecoderSpecificInfoSize = 2;
-const uint8_t kAudioObjectTypeOffset = 3;
-const uint8_t kSamplingFrequencyIndex1Offset = 1;
-const uint8_t kSamplingFrequencyIndex1Mask = 0x07;
-const uint8_t kSamplingFrequencyIndex2Offset = 7;
-const uint8_t kSamplingFrequencyIndex2Mask = 0x01;
-const uint8_t kChannelsOffset = 3;
-const uint8_t kChannelsMask = 0x0f;
+const uint8_t kAudioObjectTypeSizeInBits = 5;
+const uint8_t kSampleFrequencyIndexSizeInBits = 4;
+const uint8_t kChannelsSizeInBits = 4;
+const uint8_t kExtensionSampleFrequencyIndexSizeInBits = 4;
+const uint8_t kExtendedAudioType = 5;
 }  // namespace
 
 namespace dash2hls {
 
+// See ISO 14496-3 1.6.2.1 for details.
+//
 size_t DecoderDescriptor::DecoderSpecificInfo::Parse(const uint8_t* buffer,
                                                      size_t length) {
   size_t bytes_parsed = BaseDescriptor::ParseHeader(buffer, length);
@@ -43,28 +43,57 @@ size_t DecoderDescriptor::DecoderSpecificInfo::Parse(const uint8_t* buffer,
     return DashParser::kParseFailure;
   }
   const uint8_t* bptr = buffer + bytes_parsed;
-  if (get_size() != kDecoderSpecificInfoSize) {
-    DASH_LOG("Bad DecoderSpecificInfo",
-             "Expected exactly 2 bytes.",
-             DumpMemory(buffer, length).c_str());
-    return DashParser::kParseFailure;
-  }
+
   if (get_tag() != kDecSpecificInfoTag) {
     DASH_LOG("Bad DecoderSpecificInfo",
              "Expected kDecSpecificInfoTag.",
              DumpMemory(buffer, length).c_str());
     return DashParser::kParseFailure;
   }
-  audio_object_type_ = bptr[0] >> kAudioObjectTypeOffset;
-  sampling_frequency_index_ =
-      ((bptr[0] & kSamplingFrequencyIndex1Mask) <<
-       kSamplingFrequencyIndex1Offset) |
-      ((bptr[1] >> kSamplingFrequencyIndex2Offset) &
-       kSamplingFrequencyIndex2Mask);
-  channel_config_ = (bptr[1] >> kChannelsOffset) & kChannelsMask;
-  audio_config_[0] = bptr[0];
-  audio_config_[1] = bptr[1];
-  bptr += kDecoderSpecificInfoSize;
+
+  BitReader bit_reader(bptr, get_size());
+  sbr_present_ = false;
+  if (!bit_reader.Read(kAudioObjectTypeSizeInBits, &audio_object_type_)) {
+    DASH_LOG("Could not read audio object", "Not enough bits",
+             DumpMemory(buffer, length).c_str());
+    return DashParser::kParseFailure;
+  }
+  if (!bit_reader.Read(kSampleFrequencyIndexSizeInBits,
+                       &sampling_frequency_index_)) {
+    DASH_LOG("Could not read sampling frequency", "Not enough bits",
+             DumpMemory(buffer, length).c_str());
+    return DashParser::kParseFailure;
+  }
+  if (sampling_frequency_index_ == 0x0f) {
+    DASH_LOG("Unsupported DASH", "No support for samplingFrequencyIndex of 0xf",
+             DumpMemory(buffer, length).c_str());
+    return DashParser::kParseFailure;
+  }
+  if (!bit_reader.Read(kChannelsSizeInBits, &channel_config_)) {
+    DASH_LOG("Could not read channels", "Not enough bits",
+             DumpMemory(buffer, length).c_str());
+  }
+
+  if (audio_object_type_ == kExtendedAudioType) {
+    extension_audio_object_type_ = audio_object_type_;
+    sbr_present_ = true;
+    if (!bit_reader.Read(kExtensionSampleFrequencyIndexSizeInBits,
+                         &extension_sampling_frequency_index_)) {
+      DASH_LOG("Could not read extension sampling frequency",
+               "Not enough bits",
+               DumpMemory(buffer, length).c_str());
+      return DashParser::kParseFailure;
+    }
+    if (!bit_reader.Read(kAudioObjectTypeSizeInBits, &audio_object_type_)) {
+      DASH_LOG("Could not read extension audio object", "Not enough bits",
+               DumpMemory(buffer, length).c_str());
+      return DashParser::kParseFailure;
+    }
+  }
+  audio_config_.resize(get_size());
+  memcpy(&audio_config_[0], bptr, get_size());
+
+  bptr += get_size();
   return bptr - buffer;
 }
 

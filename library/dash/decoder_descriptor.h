@@ -8,6 +8,7 @@
 #define _DASH2HLS_DASH_DECODER_DESCRIPTOR_H_
 
 #include <string>
+#include <vector>
 
 #include "library/dash/base_descriptor.h"
 
@@ -32,7 +33,7 @@ class DecoderDescriptor : public BaseDescriptor {
   }
 
   // The PMT needs the raw audio_config_.
-  const uint8_t* get_audio_config() const {
+  const std::vector<uint8_t>& get_audio_config() const {
     return decoder_specific_info_.get_audio_config();
   }
 
@@ -46,13 +47,17 @@ class DecoderDescriptor : public BaseDescriptor {
       return sampling_frequency_index_;
     }
     uint8_t get_channel_config() const {return channel_config_;}
-    const uint8_t* get_audio_config() const {return audio_config_;}
+
+    const std::vector<uint8_t>& get_audio_config() const {return audio_config_;}
 
    private:
     uint8_t audio_object_type_;
     uint8_t sampling_frequency_index_;
     uint8_t channel_config_;
-    uint8_t audio_config_[2];
+    uint8_t extension_audio_object_type_;
+    uint8_t extension_sampling_frequency_index_;
+    std::vector<uint8_t> audio_config_;
+    bool sbr_present_;
   };
 
   uint8_t objectTypeIndication_;

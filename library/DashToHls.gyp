@@ -52,6 +52,8 @@
         ],
       },
       'sources': [
+        'bit_reader.cc',
+        'bit_reader.h',
         'utilities.h',
         'utilities.cc',
         '<!@(find dash -type f -name "*.h")',
@@ -86,6 +88,8 @@
         '..',
       ],
       'sources': [
+        'adts/adts_out.cc',
+        'adts/adts_out.h',
         'ts/transport_stream_out.cc',
         'ts/transport_stream_out.h',
       ],

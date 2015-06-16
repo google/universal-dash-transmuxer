@@ -41,7 +41,7 @@ class ElementaryStreamDescriptor : public BaseDescriptor {
   uint8_t get_channel_config() const {
     return decoder_descriptor_.get_channel_config();
   }
-  const uint8_t* get_audio_config() const {
+  const std::vector<uint8_t>& get_audio_config() const {
     return decoder_descriptor_.get_audio_config();
   }
 

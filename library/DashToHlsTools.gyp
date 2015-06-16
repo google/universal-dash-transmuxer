@@ -8,6 +8,18 @@
     'xcode_settings': {
       'CLANG_ENABLE_OBJC_ARC': [ 'YES' ],
     },
+    'conditions': [
+      ['OS=="mac"', {
+        'xcode_settings': {
+          'GCC_PREFIX_HEADER': 'DashToHls_osx.pch',
+  },
+      }],
+      ['OS=="ios"', {
+        'xcode_settings': {
+          'GCC_PREFIX_HEADER': 'DashToHls_ios.pch',
+        },
+      }],
+    ],
   },
   'conditions': [
     ['OS=="mac"', {
@@ -20,7 +32,6 @@
           'target_name': 'DashToHlsTools',
           'type': 'executable',
             'xcode_settings': {
-              'GCC_PREFIX_HEADER': 'DashToHls_osx.pch',
               'INFOPLIST_FILE': 'tools/OSX/tools-Info.plist',
             },
             'mac_bundle': 1,
@@ -50,11 +61,15 @@
       'target_name': 'gtestlib',
       'type': 'static_library',
       'include_dirs': [
-# Need to put in the correct paths to gtest and gmock.
+        '<(DEPTH)/',
+        '<(DEPTH)/third_party/gtest/include',
+        '<(DEPTH)/third_party/gmock/include',
       ],
       'all_dependent_settings': {
         'include_dirs': [
-# Need to put in the correct paths to gtest and gmock.
+          '<(DEPTH)/',
+          '<(DEPTH)/third_party/gtest/include',
+          '<(DEPTH)/third_party/gmock/include',
         ],
         'xcode_settings': {
           'OTHER_CFLAGS': [
@@ -68,7 +83,8 @@
         ],
       },
       'sources': [
-# Need to put in the correct paths to gtest-all.cc and gmock-all.cc
+        '<(DEPTH)/third_party/gtest/src/gtest-all.cc',
+        '<(DEPTH)/third_party/gmock/src/gmock-all.cc',
       ]
     },
     {
@@ -186,6 +202,7 @@
         'ts/transport_stream_out_test.cc',
         'utilities_gmock.h',
         'utilities_test.cc',
+        'bit_reader_test.cc',
         '<(gtest_main)',
       ],
     },
