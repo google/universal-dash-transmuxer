@@ -92,6 +92,7 @@ class TransportStreamOut {
                   std::vector<uint8_t>* output) const;
 
  protected:
+  static const uint8_t kID3AudioTimeTag[73];
   static const uint8_t kPat[17];
   static const uint8_t kPmtVideo[22];
   static const uint8_t kPmtAudio[59];

@@ -24,8 +24,31 @@
       'include_dirs': [
         '..',
       ],
+      'conditions': [
+        ['OS=="mac"', {
+          'defines': [
+            'USE_AVFRAMEWORK',
+          ],
+          'sources': [
+            'dash_to_hls_api_avframework.h',
+            'dash_to_hls_api_avframework.mm',
+          ],
+        }],
+        ['OS=="ios"', {
+          'defines': [
+            'USE_AVFRAMEWORK',
+          ],
+          'sources': [
+            'dash_to_hls_api_avframework.h',
+            'dash_to_hls_api_avframework.mm',
+          ],
+        }],
+      ],
       'sources': [
+        '../include/DashToHlsApi.h',
+        '../include/DashToHlsApiAVFramework.h',
         'dash_to_hls_api.cc',
+        'dash_to_hls_session.h',
         'utilities.cc',
         'utilities.h',
       ],

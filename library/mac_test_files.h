@@ -34,4 +34,6 @@ FILE* Dash2HLS_GetTestCencAudioHeader();
 FILE* Dash2HLS_GetTestCencVideoSegment();
 FILE* Dash2HLS_GetTestCencAudioSegment();
 
+FILE* Dash2HLS_GetMp4BoxInitSegment();
+
 #endif  // _DASH2HLS_MAC_TEST_FILES_H_

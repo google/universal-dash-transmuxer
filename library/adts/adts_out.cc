@@ -19,17 +19,6 @@
 #include "library/utilities.h"
 
 namespace {
-  const uint8_t kAdaptationBit = 0x20;
-  const uint8_t kAdaptationFiller = 0xff;
-  const uint8_t kAdaptationPcr = 0x10;
-  const uint16_t kContinuityMask = 0x0f;
-  const int64_t kNoPcr = -1;
-  const uint16_t kPayloadStartBit = 0x4000;
-  const uint8_t kPayloadBit = 0x10;
-  const size_t kPcrAdaptationSize = 8;
-  const size_t kTsPacketSize = 188;
-  const size_t kTsPayloadSize = 184;
-  const uint8_t kTsSync = 0x47;
   const size_t kAudioFrameHeaderSize = 7;
   const size_t kMaxAudioFrameLength = 8191;
 }  // namespace

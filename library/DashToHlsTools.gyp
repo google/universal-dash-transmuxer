@@ -12,7 +12,7 @@
       ['OS=="mac"', {
         'xcode_settings': {
           'GCC_PREFIX_HEADER': 'DashToHls_osx.pch',
-  },
+        },
       }],
       ['OS=="ios"', {
         'xcode_settings': {
@@ -174,11 +174,15 @@
         ['OS=="mac"', {
           'libraries': [
             'libcrypto.dylib',
+            '$(SDKROOT)/System/Library/Frameworks/AVFoundation.framework',
           ],
         }],
         ['OS=="ios"', {
           'dependencies': [
             '<(openssl_dependency)',
+          ],
+          'libraries': [
+            '$(SDKROOT)/System/Library/Frameworks/AVFoundation.framework',
           ],
         }],
       ],

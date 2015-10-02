@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <map>
+#ifdef USE_AVFRAMEWORK
+#include "library/dash_to_hls_api_avframework.h"
+#endif
 
 #include "include/DashToHlsApi.h"
 #include "library/adts/adts_out.h"
@@ -23,16 +25,18 @@ limitations under the License.
 #include "library/dash/box_type.h"
 #include "library/dash/dash_parser.h"
 #include "library/dash/mdat_contents.h"
+#include "library/dash/mdhd_contents.h"
 #include "library/dash/mp4a_contents.h"
 #include "library/dash/mvhd_contents.h"
 #include "library/dash/pssh_contents.h"
 #include "library/dash/saio_contents.h"
 #include "library/dash/saiz_contents.h"
 #include "library/dash/sidx_contents.h"
-#include "library/dash/tenc_contents.h"
 #include "library/dash/tfdt_contents.h"
 #include "library/dash/tfhd_contents.h"
+#include "library/dash/trex_contents.h"
 #include "library/dash/trun_contents.h"
+#include "library/dash_to_hls_session.h"
 #include "library/ts/transport_stream_out.h"
 #include "utilities.h"
 
@@ -77,56 +81,45 @@ DashToHlsStatus ProcessAvcc(const AvcCContents* avcc,
 // use the default set in the tfhd.
 uint64_t GetDuration(const TrunContents* trun,
                      const TrunContents::TrackRun* track_run,
-                     const TfhdContents* tfhd) {
+                     const TfhdContents* tfhd,
+                     uint64_t trex_default_sample_duration) {
   uint64_t duration = 0;
   if (trun->IsSampleDurationPresent()) {
     duration = track_run->sample_duration_;
-  } else {
+  } else if (tfhd->IsDefaultSampleDurationPresent()){
     duration = tfhd->get_default_sample_duration();
+  } else {
+    duration = trex_default_sample_duration;
   }
   if (duration == 0) {
-    DASH_LOG("No Duration", "Duration must be greater than 0",
-             (trun->BoxName() + ":" + trun->PrettyPrint("") + " " +
-              trun->PrettyPrintTrackRun(*track_run)).c_str());
+    if (track_run) {
+      DASH_LOG("No Duration", "Duration must be greater than 0",
+               (trun->BoxName() + ":" + trun->PrettyPrint("") + " " +
+                trun->PrettyPrintTrackRun(*track_run) + " " +
+                PrettyPrintValue(trex_default_sample_duration)).c_str());
+    } else {
+      DASH_LOG("No Duration", "Duration must be greater than 0",
+               (trun->BoxName() + ":" + trun->PrettyPrint("") + " " +
+                PrettyPrintValue(trex_default_sample_duration)).c_str());
+    }
     return kDashToHlsStatus_BadDashContents;
   }
   return duration;
 }
+
+void ProcessPsshBoxes(Session* session,
+                      const std::vector<const Box*>& pssh_boxes) {
+  for (auto iter = pssh_boxes.begin(); iter != pssh_boxes.end(); ++iter) {
+    const PsshContents* pssh =
+        reinterpret_cast<const PsshContents*>((*iter)->get_contents());
+    session->is_encrypted_ = true;
+    session->pssh_handler_(session->pssh_context_,
+                           pssh->get_full_box().data(),
+                           pssh->get_full_box().size());
+  }
+}
 }  // namespace internal
 
-// Internal Session object.  Tracks all information used by the calls.
-class Session {
- public:
-  Session() :
-      is_video_(false), is_encrypted_(false), pssh_handler_(nullptr),
-      decryption_handler_(nullptr), default_iv_size_(0), nalu_length_(0),
-      audio_object_type_(0), sampling_frequency_index_(0), channel_config_(0),
-      pssh_context_(nullptr), decryption_context_(nullptr), timescale_(0) {
-  }
-  bool is_video_;
-  DashParser parser_;
-  DashToHlsIndex index_;
-  bool is_encrypted_;
-  CENC_PsshHandler pssh_handler_;
-  CENC_DecryptionHandler decryption_handler_;
-  size_t default_iv_size_;
-
-  std::map<uint32_t, std::vector<uint8_t> > output_;
-
-  // Video specific settings.
-  std::vector<uint8_t> sps_pps_;
-  size_t nalu_length_;
-
-  // Audio specific settings.
-  uint8_t audio_object_type_;
-  uint8_t sampling_frequency_index_;
-  uint8_t channel_config_;
-  uint8_t audio_config_[2];
-  DashToHlsContext pssh_context_;
-  DashToHlsContext decryption_context_;
-  uint64_t timescale_;
-  uint8_t key_id[TencContents::kKidSize];
-};
 
 extern "C" DashToHlsStatus
 DashToHls_CreateSession(DashToHlsSession** session) {
@@ -171,9 +164,24 @@ DashToHls_ParseDash(DashToHlsSession* session, const uint8_t* bytes,
   }
   mvhd = reinterpret_cast<const MvhdContents*>(box->get_contents());
   dash_session->timescale_ = mvhd->get_timescale();
+  box = dash_session->parser_.FindDeep(BoxType::kBox_mdhd);
+  if (box) {
+    const MdhdContents* mdhd =
+        reinterpret_cast<const MdhdContents*>(box->get_contents());
+    dash_session->timescale_ = mdhd->get_timescale();
+  }
+
   if (dash_session->timescale_ == 0) {
-    DASH_LOG("Bad Dash Content.", "mvhd needs a timescale.", "");
+    DASH_LOG("Bad Dash Content.", "mvhd or mdhd needs a timescale.", "");
     return kDashToHlsStatus_BadDashContents;
+  }
+
+  box = dash_session->parser_.FindDeep(BoxType::kBox_trex);
+  if (box) {
+    const TrexContents* trex =
+        reinterpret_cast<const TrexContents*>(box->get_contents());
+    dash_session->trex_default_sample_duration_ =
+        trex->get_default_sample_duration();
   }
 
   // See if we have an video box.
@@ -220,24 +228,20 @@ DashToHls_ParseDash(DashToHlsSession* session, const uint8_t* bytes,
   const TencContents* tenc =
       reinterpret_cast<const TencContents*>(box->get_contents());
 
-  box = dash_session->parser_.FindDeep(BoxType::kBox_pssh);
-  if (!box) {
+  const std::vector<const Box*> pssh_boxes =
+      dash_session->parser_.FindDeepAll(BoxType::kBox_pssh);
+  if (pssh_boxes.empty()) {
     DASH_LOG("Missing boxes.", "Missing pssh box", "");
     return kDashToHlsStatus_BadConfiguration;
   }
-  const PsshContents* pssh =
-      reinterpret_cast<const PsshContents*>(box->get_contents());
 
   if (!dash_session->pssh_handler_ || !dash_session->decryption_handler_) {
     DASH_LOG("Bad Configuration.", "Missing required callback for CENC",
              "");
     return kDashToHlsStatus_BadConfiguration;
   }
-  dash_session->is_encrypted_ = true;
-  std::vector<uint8_t> pssh_box;
-  dash_session->pssh_handler_(dash_session->pssh_context_,
-                              pssh->get_full_box().data(),
-                              pssh->get_full_box().size());
+  internal::ProcessPsshBoxes(dash_session, pssh_boxes);
+
   // TODO(justsomeguy) support more lengths than 8.
   if (tenc->get_default_iv_size() != 8) {
     DASH_LOG("Unimplemented.",
@@ -245,7 +249,7 @@ DashToHls_ParseDash(DashToHlsSession* session, const uint8_t* bytes,
              "");
   }
   dash_session->default_iv_size_ = tenc->get_default_iv_size();
-  memcpy(dash_session->key_id, tenc->get_default_kid(),
+  memcpy(dash_session->key_id_, tenc->get_default_kid(),
          TencContents::kKidSize);
 
 
@@ -296,7 +300,8 @@ DashToHlsStatus GetNeededBoxes(bool is_encrypted,
       DASH_LOG("Bad Dash Content.", "No tfdt", "");
       return kDashToHlsStatus_BadDashContents;
     }
-    *tfdt = reinterpret_cast<const TfdtContents*>(boxes[index]->get_contents());
+    *tfdt =
+        reinterpret_cast<const TfdtContents*>(boxes[index]->get_contents());
   }
 
   if (tfhd) {
@@ -305,7 +310,8 @@ DashToHlsStatus GetNeededBoxes(bool is_encrypted,
       DASH_LOG("Bad Dash Content.", "No tfhd", "");
       return kDashToHlsStatus_BadDashContents;
     }
-    *tfhd = reinterpret_cast<const TfhdContents*>(boxes[index]->get_contents());
+    *tfhd =
+        reinterpret_cast<const TfhdContents*>(boxes[index]->get_contents());
   }
 
   if (trun) {
@@ -314,7 +320,8 @@ DashToHlsStatus GetNeededBoxes(bool is_encrypted,
       DASH_LOG("Bad Dash Content.", "No trun", "");
       return kDashToHlsStatus_BadDashContents;
     }
-    *trun = reinterpret_cast<const TrunContents*>(boxes[index]->get_contents());
+    *trun =
+        reinterpret_cast<const TrunContents*>(boxes[index]->get_contents());
   }
 
   if (is_encrypted) {
@@ -498,6 +505,14 @@ bool DecryptSample(const Session* session, uint32_t sample_number,
   return true;
 }
 
+bool Reencrypt(const Session* dash_session, std::vector<uint8_t>* ts_output) {
+#ifdef USE_AVFRAMEWORK
+  return Encrypt(reinterpret_cast<const DashToHlsSession*>(dash_session),
+                 ts_output);
+#endif
+  return true;
+}
+
 DashToHlsStatus TransmuxToTS(const Session* dash_session,
                              const MdatContents* mdat,
                              const BoxContents* moof,
@@ -553,19 +568,24 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
       sizeof(uint32_t) * 2 -
       mdat->get_stream_position();
   const uint8_t* mdat_data = mdat->get_raw_data();
-  size_t sample_number = 0;
+  uint32_t sample_number = 0;
   for (std::vector<TrunContents::TrackRun>::const_iterator
            iter = track_run.begin(); iter != track_run.end(); ++iter) {
     uint64_t duration =
-        (internal::GetDuration(trun, &(*iter), tfhd) * kDtsClock) /
-        dash_session->timescale_;
+        (internal::GetDuration(trun, &(*iter), tfhd,
+                               dash_session->trex_default_sample_duration_)
+         * kDtsClock) / dash_session->timescale_;
     if (duration == 0) {
       return kDashToHlsStatus_BadDashContents;
     }
     uint64_t pts = dts;
     if (trun->IsSampleCompositionPresent()) {
-      pts += (iter->sample_composition_time_offset_ * kDtsClock)
-          / dash_session->timescale_;
+      // Handle overflow of multiplying large 32 bit ints.
+      uint64_t offset =
+          static_cast<uint64_t>(iter->sample_composition_time_offset_) *
+          static_cast<uint64_t>(kDtsClock) /
+          static_cast<uint64_t>(dash_session->timescale_);
+      pts += offset;
     }
     if (mdat_offset + iter->sample_size_ > mdat->get_raw_data_length()) {
       DASH_LOG("Buffer overrun.", "Offset would be past the end of the mdat.",
@@ -578,7 +598,7 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
       if (tenc) {
         key_id = tenc->get_default_kid();
       } else {
-        key_id = dash_session->key_id;
+        key_id = dash_session->key_id_;
       }
 
       if (!DecryptSample(dash_session, sample_number, saiz, saio, key_id, mdat,
@@ -587,27 +607,34 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
         return kDashToHlsStatus_BadDashContents;
       }
       if (dash_session->is_video_) {
-      ts_out.ProcessSample(decrypted.data(), decrypted.size(),
-                           dash_session->is_video_, sample_number == 0,
-                           pts, dts, dts, duration, &output);
-    } else {
+        ts_out.ProcessSample(decrypted.data(), decrypted.size(),
+                             dash_session->is_video_, sample_number == 0,
+                             pts, dts, dts, duration, &output);
+      } else {
         adts_out.ProcessSample(decrypted.data(), decrypted.size(), &output);
       }
     } else {
       if (dash_session->is_video_) {
-      ts_out.ProcessSample(mdat_data + mdat_offset, iter->sample_size_,
-                           dash_session->is_video_, sample_number == 0,
-                           pts, dts, dts, duration, &output);
+        ts_out.ProcessSample(mdat_data + mdat_offset, iter->sample_size_,
+                             dash_session->is_video_, sample_number == 0,
+                             pts, dts, dts, duration, &output);
       } else {
         adts_out.ProcessSample(mdat_data + mdat_offset, iter->sample_size_,
                                &output);
-    }
+      }
     }
     ++sample_number;
     ts_output->insert(ts_output->end(), output.begin(), output.end());
     mdat_offset += iter->sample_size_;
     dts += duration;
   }
+#ifdef USE_AVFRAMEWORK
+  if (is_encrypting()) {
+    if (!Reencrypt(dash_session, ts_output)) {
+      return kDashToHlsStatus_BadConfiguration;
+    }
+  }
+#endif  // AVFRAMEWORK
   return kDashToHlsStatus_OK;
 }
 }  // namespace
@@ -650,23 +677,19 @@ DashToHls_ParseLivePssh(DashToHlsSession* session, const uint8_t* bytes,
   // Check for CENC.
   const Box* box = dash_session->parser_.FindDeep(BoxType::kBox_tenc);
   if (box) {
-    box = dash_session->parser_.FindDeep(BoxType::kBox_pssh);
-    if (!box) {
+    const std::vector<const Box*> pssh_boxes =
+      dash_session->parser_.FindDeepAll(BoxType::kBox_pssh);
+    if (pssh_boxes.empty()) {
       DASH_LOG("Missing boxes.", "Missing pssh box", "");
       return kDashToHlsStatus_BadConfiguration;
     }
-    const PsshContents* pssh =
-        reinterpret_cast<const PsshContents*>(box->get_contents());
 
     if (!dash_session->pssh_handler_ || !dash_session->decryption_handler_) {
       DASH_LOG("Bad Configuration.", "Missing required callback for CENC",
                "");
       return kDashToHlsStatus_BadConfiguration;
     }
-    dash_session->is_encrypted_ = true;
-    dash_session->pssh_handler_(dash_session->pssh_context_,
-                                pssh->get_full_box().data(),
-                                pssh->get_full_box().size());
+    internal::ProcessPsshBoxes(dash_session, pssh_boxes);
   } else {
     return kDashToHlsStatus_ClearContent;
   }
@@ -772,8 +795,22 @@ DashToHls_ParseLive(DashToHlsSession* session, const uint8_t* bytes,
   }
   mvhd = reinterpret_cast<const MvhdContents*>(box->get_contents());
   dash_session->timescale_ = mvhd->get_timescale();
+  box = dash_session->parser_.FindDeep(BoxType::kBox_mdhd);
+  if (box) {
+    const MdhdContents* mdhd =
+        reinterpret_cast<const MdhdContents*>(box->get_contents());
+    dash_session->timescale_ = mdhd->get_timescale();
+  }
+  box = dash_session->parser_.FindDeep(BoxType::kBox_trex);
+  if (box) {
+    const TrexContents* trex =
+        reinterpret_cast<const TrexContents*>(box->get_contents());
+    dash_session->trex_default_sample_duration_ =
+        trex->get_default_sample_duration();
+  }
+
   if (dash_session->timescale_ == 0) {
-    DASH_LOG("Bad Dash Content.", "mvhd needs a timescale.", "");
+    DASH_LOG("Bad Dash Content.", "mvhd or mdhd needs a timescale.", "");
     return kDashToHlsStatus_BadDashContents;
   }
 
@@ -856,6 +893,7 @@ DashToHls_ConvertDashSegment(DashToHlsSession* session,
   const SaioContents* saio = nullptr;
   const SaizContents* saiz = nullptr;
   const TencContents* tenc = nullptr;
+
   size_t segment_count = 0;
 
   while (true) {
@@ -887,7 +925,8 @@ extern "C"
 DashToHlsStatus DashToHls_ReleaseHlsSegment(DashToHlsSession* session,
                                             uint32_t hls_segment_number) {
   Session* dash_session = reinterpret_cast<Session*>(session);
-  dash_session->output_[hls_segment_number] = std::vector<uint8_t>();
+  // Only way to reset capacity is to swap.
+  std::vector<uint8_t>().swap(dash_session->output_[hls_segment_number]);
   return kDashToHlsStatus_OK;
 }
 
@@ -901,7 +940,7 @@ void SetDiagnosticCallback(void (*diagnostic_callback)(const char*)) {
 }
 
 extern "C"
-void DashToHls_PrettyPrint(DashToHlsSession* session) {
+void DashToHls_PrettyPrint(struct DashToHlsSession* session) {
   Session* dash_session = reinterpret_cast<Session*>(session);
   g_diagnostic_callback(dash_session->parser_.PrettyPrint("").c_str());
 }

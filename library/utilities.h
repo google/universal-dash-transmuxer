@@ -31,17 +31,23 @@ namespace dash2hls {
 // The uint8_t* buffer is assumed to always be big enough to hold the
 // appropriate value.
 inline uint16_t ntohsFromBuffer(const uint8_t* buffer) {
-  return ntohs(*(reinterpret_cast<const uint16_t*>(buffer)));
+  uint16_t networkBytes;
+  memcpy(&networkBytes, buffer, sizeof(networkBytes));
+  return ntohs(networkBytes);
 }
 inline void htonsToBuffer(uint16_t value, uint8_t* buffer) {
-  *(reinterpret_cast<uint16_t*>(buffer)) = htons(value);
+  uint16_t network_value = htons(value);
+  memcpy(buffer, &network_value, sizeof(network_value));
 }
 
 inline uint32_t ntohlFromBuffer(const uint8_t* buffer) {
-    return ntohl(*(reinterpret_cast<const uint32_t*>(buffer)));
+  uint32_t networkBytes;
+  memcpy(&networkBytes, buffer, sizeof(networkBytes));
+  return ntohl(networkBytes);
 }
 inline void htonlToBuffer(uint32_t value, uint8_t* buffer) {
-  *(reinterpret_cast<uint32_t*>(buffer)) = htonl(value);
+  uint32_t network_value = htonl(value);
+  memcpy(buffer, &network_value, sizeof(network_value));
 }
 
 uint64_t ntohllFromBuffer(const uint8_t* buffer);

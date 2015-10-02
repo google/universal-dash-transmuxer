@@ -38,12 +38,19 @@ class ElementaryStreamDescriptor : public BaseDescriptor {
     return decoder_descriptor_.get_sampling_frequency_index();
   }
 
+  uint32_t get_extension_sampling_frequency() const {
+    return decoder_descriptor_.get_extension_sampling_frequency();
+  }
+
   uint8_t get_channel_config() const {
     return decoder_descriptor_.get_channel_config();
   }
+
   const std::vector<uint8_t>& get_audio_config() const {
     return decoder_descriptor_.get_audio_config();
   }
+
+  bool sbr_present() const {return decoder_descriptor_.sbr_present();}
 
  private:
   enum {

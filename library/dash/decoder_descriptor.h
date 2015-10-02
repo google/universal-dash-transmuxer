@@ -28,6 +28,10 @@ class DecoderDescriptor : public BaseDescriptor {
     return decoder_specific_info_.get_sampling_frequency_index();
   }
 
+  uint32_t get_extension_sampling_frequency() const {
+    return decoder_specific_info_.get_extension_sampling_frequency();
+  }
+
   uint8_t get_channel_config() const {
     return decoder_specific_info_.get_channel_config();
   }
@@ -35,6 +39,10 @@ class DecoderDescriptor : public BaseDescriptor {
   // The PMT needs the raw audio_config_.
   const std::vector<uint8_t>& get_audio_config() const {
     return decoder_specific_info_.get_audio_config();
+  }
+
+  bool sbr_present() const {
+    return decoder_specific_info_.sbr_present();
   }
 
  private:
@@ -46,18 +54,19 @@ class DecoderDescriptor : public BaseDescriptor {
     uint8_t get_sampling_frequency_index() const {
       return sampling_frequency_index_;
     }
+    uint32_t get_extension_sampling_frequency() const;
     uint8_t get_channel_config() const {return channel_config_;}
-
     const std::vector<uint8_t>& get_audio_config() const {return audio_config_;}
+    bool sbr_present() const {return sbr_present_;}
 
    private:
     uint8_t audio_object_type_;
     uint8_t sampling_frequency_index_;
     uint8_t channel_config_;
-    uint8_t extension_audio_object_type_;
-    uint8_t extension_sampling_frequency_index_;
+    uint8_t extension_audio_object_type_ = 0;
+    uint8_t extension_sampling_frequency_index_ = 0;
     std::vector<uint8_t> audio_config_;
-    bool sbr_present_;
+    bool sbr_present_ = false;
   };
 
   uint8_t objectTypeIndication_;

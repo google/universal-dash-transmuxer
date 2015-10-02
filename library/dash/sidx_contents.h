@@ -45,11 +45,9 @@ class SidxContents : public FullBoxContents {
   const std::vector<DashToHlsSegment>& get_locations() const {
     return locations_;
   }
-  const uint32_t get_timescale() const {
-    return timescale_;
-  }
   virtual std::string PrettyPrint(std::string indent) const;
   virtual std::string BoxName() const {return "SegmentIndex";}
+  uint32_t get_timescale() const {return timescale_;}
 
  protected:
   virtual size_t Parse(const uint8_t* buffer, size_t length);

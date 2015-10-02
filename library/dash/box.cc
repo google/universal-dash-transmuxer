@@ -28,6 +28,7 @@ limitations under the License.
 #include "library/dash/elst_contents.h"
 #include "library/dash/esds_contents.h"
 #include "library/dash/mdat_contents.h"
+#include "library/dash/mdhd_contents.h"
 #include "library/dash/mp4a_contents.h"
 #include "library/dash/mvhd_contents.h"
 #include "library/dash/pssh_contents.h"
@@ -111,6 +112,9 @@ void Box::CreateContentsObject() {
     case BoxType::kBox_enca:
     case BoxType::kBox_mp4a:
       contents_.reset(new Mp4aContents(stream_position_));
+      break;
+    case BoxType::kBox_mdhd:
+      contents_.reset(new MdhdContents(stream_position_));
       break;
     case BoxType::kBox_mvhd:
       contents_.reset(new MvhdContents(stream_position_));

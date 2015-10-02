@@ -79,8 +79,14 @@ size_t DecoderDescriptor::DecoderSpecificInfo::Parse(const uint8_t* buffer,
     sbr_present_ = true;
     if (!bit_reader.Read(kExtensionSampleFrequencyIndexSizeInBits,
                          &extension_sampling_frequency_index_)) {
-      DASH_LOG("Could not read extension sampling frequency",
+      DASH_LOG("Could not read extension sampling frequency index",
                "Not enough bits",
+               DumpMemory(buffer, length).c_str());
+      return DashParser::kParseFailure;
+    }
+    if (extension_sampling_frequency_index_ == 0x0f) {
+      DASH_LOG("Unsupported DASH",
+               "No support for extensionSamplingFrequencyIndex of 0xf",
                DumpMemory(buffer, length).c_str());
       return DashParser::kParseFailure;
     }
@@ -104,11 +110,40 @@ DecoderDescriptor::DecoderSpecificInfo::PrettyPrint(std::string indent) const {
   result += std::string(" Freq:") +
       PrettyPrintValue(sampling_frequency_index_);
   result += std::string(" Channels:") + PrettyPrintValue(channel_config_);
+  result += std::string(" ExtensionType:") +
+      PrettyPrintValue(extension_audio_object_type_);
+  result += std::string(" ExtensionFreq:") +
+      PrettyPrintValue(extension_sampling_frequency_index_);
+  result += std::string(" SBR:") + PrettyPrintValue(sbr_present_);
   return result;
 }
 
+uint32_t DecoderDescriptor::DecoderSpecificInfo::
+    get_extension_sampling_frequency() const {
+  // From ISO/IEC 14496-3:2005 Table 1.16.
+  switch (extension_sampling_frequency_index_)  {
+    case 0: return 96000;
+    case 1: return 88200;
+    case 2: return 64000;
+    case 3: return 48000;
+    case 4: return 44100;
+    case 5: return 32000;
+    case 6: return 24000;
+    case 7: return 22050;
+    case 8: return 16000;
+    case 9: return 12000;
+    case 10: return 11025;
+    case 11: return 8000;
+    case 12: return 7350;
+  }
+  // 13 and 14 are reserved, and we don't currently support 15.
+  DASH_LOG("Unsupported extension_sampling_frequency", "", "");
+  return 0;
+}
+
+
 // class DecoderConfigDescriptor extends BaseDescriptor :
-//     bit(8) tag=DecoderConfigDescrTag {
+//   bit(8) tag=DecoderConfigDescrTag {
 //   bit(8) objectTypeIndication;
 //   bit(6) streamType;
 //   bit(1) upStream;

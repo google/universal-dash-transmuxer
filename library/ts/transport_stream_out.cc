@@ -99,7 +99,8 @@ void TransportStreamOut::FrameAudio(const uint8_t* input, size_t input_length,
 
 // Modifies the audio_pmt_ to be the kPmtAudio with the correct audio_config.
 void TransportStreamOut::set_audio_config(const uint8_t config[2]) {
-  audio_pmt_ = std::vector<uint8_t>();
+  // Only way to reset capacity is to swap.
+  std::vector<uint8_t>().swap(audio_pmt_);
   audio_pmt_.insert(audio_pmt_.end(), kPmtAudio,
                     kPmtAudio + sizeof(kPmtAudio));
   audio_pmt_[kPmtAudioConfigOffset] = config[0];
