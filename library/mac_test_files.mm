@@ -19,6 +19,7 @@ limitations under the License.
 #import <Foundation/Foundation.h>
 
 namespace {
+NSString* kMp4BoxInitSegment = @"mp4box_init";
 NSString* kDashSampleCencVideoFile = @"";
 NSString* kDashSampleCencAudioFile = @"";
 NSString* kDashSampleVideoFile = @"";
@@ -82,5 +83,12 @@ FILE* Dash2HLS_GetTestCencAudioSegment() {
   NSString* mp4_path =
       [[NSBundle mainBundle] pathForResource:kDashSampleAudioSegment
            ofType:@"mp4"];
+  return fopen([mp4_path UTF8String], "r");
+}
+
+FILE* Dash2HLS_GetMp4BoxInitSegment() {
+  NSString* mp4_path =
+      [[NSBundle mainBundle] pathForResource:kMp4BoxInitSegment
+                                      ofType:@"mp4"];
   return fopen([mp4_path UTF8String], "r");
 }

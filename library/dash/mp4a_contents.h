@@ -44,11 +44,17 @@ class Mp4aContents : public AudioSampleEntryContents {
     return esds_->get_sampling_frequency_index();
   }
 
+  uint32_t get_extension_sampling_frequency() const {
+    return esds_->get_extension_sampling_frequency();
+  }
+
   uint8_t get_channel_config() const {return esds_->get_channel_config();}
 
   const std::vector<uint8_t>& get_audio_config() const {
     return esds_->get_audio_config();
   }
+
+  bool sbr_present() const {return esds_->sbr_present();}
 
  protected:
   virtual size_t Parse(const uint8_t* buffer, size_t length);

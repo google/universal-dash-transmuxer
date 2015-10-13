@@ -303,7 +303,8 @@ TEST(TransportStreamOut, Video) {
   pes2.SetPts(kPesPts);
   pes2.SetCopyright(true);
   pes2.SetOriginal(true);
-  output = std::vector<uint8_t>();
+  // Only way to reset capacity is to swap.
+  std::vector<uint8_t>().swap(output);
   ts_out.OutputPesOverTS(pes2, TransportStreamOut::kPidVideo, kPesPcr,
                          &continuity_counter, &output);
   EXPECT_EQ(3, continuity_counter);
@@ -317,7 +318,7 @@ TEST(TransportStreamOut, Video) {
   pes3.SetPts(kPesPts);
   pes3.SetCopyright(true);
   pes3.SetOriginal(true);
-  output = std::vector<uint8_t>();
+  std::vector<uint8_t>().swap(output);
   ts_out.OutputPesOverTS(pes3, TransportStreamOut::kPidVideo, kPesPcr,
                          &continuity_counter, &output);
   EXPECT_EQ(4, continuity_counter);

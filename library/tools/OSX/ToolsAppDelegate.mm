@@ -66,7 +66,7 @@ void sConverterCallback(const char* callbackString) {
     case kDashToHlsStatus_ClearContent:
       break;
     default:
-    return;
+      return;
   }
   for (uint8_t segment = 0; segment < index->index_count; ++segment) {
     DashToHlsStatus status = kDashToHlsStatus_OK;

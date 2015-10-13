@@ -52,7 +52,6 @@ class AudioSampleEntryContents : public SampleEntryContents {
   uint16_t channel_count_;
   uint16_t sample_size_;
   uint32_t sample_rate_;
-  ElementaryStreamDescriptor esd_;
 };
 }  // namespace dash2hls
 

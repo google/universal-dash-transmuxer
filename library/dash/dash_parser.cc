@@ -82,7 +82,8 @@ size_t DashParser::Parse(const uint8_t* buffer, size_t length) {
           return kParseFailure;
         }
         current_stream_position_ += spillover_.size();
-        spillover_ = std::vector<uint8_t>();
+        // Only way to reset capacity is to swap.
+        std::vector<uint8_t>().swap(spillover_);
         if (current_box_->DoneParsing()) {
           current_box_ = 0;
         }

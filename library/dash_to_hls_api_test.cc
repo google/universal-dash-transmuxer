@@ -16,12 +16,20 @@ limitations under the License.
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <openssl/aes.h>
 
 #include "include/DashToHlsApi.h"
 #include "library/dash/avcc_contents.h"
 #include "library/dash/box_type.h"
 #include "library/dash/dash_parser.h"
+#include "library/dash/mdat_contents.h"
+#include "library/dash/saio_contents.h"
+#include "library/dash/saiz_contents.h"
+#include "library/dash/tenc_contents.h"
+#include "library/dash/tfdt_contents.h"
+#include "library/dash/tfhd_contents.h"
+#include "library/dash/trex_contents.h"
+#include "library/dash/trun_contents.h"
+#include "library/dash_to_hls_session.h"
 #include "library/mac_test_files.h"
 #include "library/utilities.h"
 #include "library/utilities_gmock.h"
@@ -93,24 +101,6 @@ const uint8_t video_key[] = {0x6f, 0xc9, 0x6f, 0xe6, 0x28, 0xa2, 0x65, 0xb1,
                              0x3a, 0xed, 0xde, 0xc0, 0xbc, 0x42, 0x1f, 0x4d};
 }  // namespace
 
-DashToHlsStatus DecryptionHandler(void *context, const uint8_t* encrypted,
-                                  uint8_t* clear,
-                                  size_t length,
-                                  uint8_t* iv,
-                                  size_t iv_length,
-                                  const uint8_t*, SampleEntry*, size_t) {
-  EXPECT_EQ(&kDecryptionContext, context);
-  AES_KEY aes_key;
-  AES_set_encrypt_key(video_key, AES_BLOCK_SIZE * 8, &aes_key);
-  uint8_t ecount_buf[AES_BLOCK_SIZE];
-  memset(ecount_buf, 0, AES_BLOCK_SIZE);
-  unsigned int block_offset_cur = 0;
-  AES_ctr128_encrypt(encrypted, clear, length, &aes_key, iv, ecount_buf,
-                     &block_offset_cur);
-  return kDashToHlsStatus_OK;
-}
-
-
 TEST(DashToHlsApi, ParseDash) {
   DashToHlsSession* session = nullptr;
   EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_CreateSession(&session));
@@ -145,6 +135,7 @@ TEST(DashToHlsApi, ParseDash) {
 
   EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_ReleaseSession(session));
 }
+
 TEST(DashToHlsApi, ParseAudioDash) {
   uint32_t segment_number = 1;
   DashToHlsSession* session = nullptr;
@@ -182,37 +173,6 @@ TEST(DashToHlsApi, ParseAudioDash) {
   EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_ReleaseSession(session));
 }
 
-// TODO(justsomeguy) This test is pretty useless for now.  It needs to have
-// the AES test vectors moved over first.  Then it needs to have the
-// DecryptSample broken up so it can be unit tested.  Finally it needs to
-// have expected data.  The expected data is large and needs to be in its own
-// files.
-TEST(DashToHlsApi, ParseVideoCenc) {
-  DashToHlsSession* session = nullptr;
-  EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_CreateSession(&session));
-  EXPECT_EQ(kDashToHlsStatus_OK,
-            DashToHls_SetCenc_PsshHandler(session,
-                                          &kPsshContext,
-                                          PsshHandler));
-  EXPECT_EQ(kDashToHlsStatus_OK,
-            DashToHls_SetCenc_DecryptSample(session, &kDecryptionContext,
-                                            DecryptionHandler, false));
-
-  FILE* file = Dash2HLS_GetTestCencVideoHeader();
-  ASSERT_NE(reinterpret_cast<FILE*>(0), file);
-  fseek(file, 0, SEEK_END);
-  size_t file_size = ftell(file);
-  fseek(file, 0, SEEK_SET);
-  size_t bytes_read = 0;
-  uint8_t* buffer = new uint8_t[file_size];
-  bytes_read = fread(buffer, 1, file_size, file);
-  ASSERT_EQ(file_size, bytes_read);
-  DashToHlsIndex* index;
-  EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_ParseDash(session, buffer,
-                                                     bytes_read, &index));
-  EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_ReleaseSession(session));
-}
-
 TEST(DashToHlsApi, ParseDashList) {
   DashToHlsSession* session = nullptr;
   EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_CreateSession(&session));
@@ -229,4 +189,52 @@ TEST(DashToHlsApi, ParseDashList) {
             DashToHls_ParseLive(session, buffer, bytes_read, 0,
                                 &hls_segment, &hls_length));
 }
+
+namespace internal {
+  uint64_t GetDuration(const TrunContents* trun,
+                       const TrunContents::TrackRun* track_run,
+                       const TfhdContents* tfhd,
+                       uint64_t trex_default_sample_duration);
+
+}  // namespace internal
+
+TEST(DashToHlsApi, DurationInTrex) {
+  DashToHlsSession* session = nullptr;
+  EXPECT_EQ(kDashToHlsStatus_OK, DashToHls_CreateSession(&session));
+  FILE* file = Dash2HLS_GetMp4BoxInitSegment();
+  ASSERT_NE(reinterpret_cast<FILE*>(0), file);
+  fseek(file, 0, SEEK_END);
+  size_t file_size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  size_t bytes_read = 0;
+  std::vector<uint8_t> buffer(file_size);
+  bytes_read = fread(buffer.data(), 1, file_size, file);
+  ASSERT_EQ(file_size, bytes_read);
+  struct DashToHlsIndex* index = nullptr;
+  DashToHlsStatus status = DashToHls_ParseDash(session, buffer.data(),
+                                               bytes_read, &index);
+  ASSERT_TRUE(status == kDashToHlsStatus_ClearContent ||
+              status == kDashToHlsStatus_OK);
+  Session* dash_session = reinterpret_cast<Session*>(session);
+  std::vector<const Box*> boxes =
+      dash_session->parser_.FindDeepAll(BoxType::kBox_tfhd);
+  ASSERT_GE(1, boxes.size());
+  const TfhdContents* tfhd =
+      reinterpret_cast<const TfhdContents*>(boxes[0]->get_contents());
+
+  boxes = dash_session->parser_.FindDeepAll(BoxType::kBox_trun);
+  ASSERT_GE(1, boxes.size());
+  const TrunContents* trun =
+      reinterpret_cast<const TrunContents*>(boxes[0]->get_contents());
+
+  boxes = dash_session->parser_.FindDeepAll(BoxType::kBox_trex);
+  ASSERT_GE(1, boxes.size());
+  const TrexContents* trex =
+      reinterpret_cast<const TrexContents*>(boxes[0]->get_contents());
+
+  // Duration is in the trex only so we can pass a nullptr for the particular
+  // trun.
+  EXPECT_EQ(1001, internal::GetDuration(trun, nullptr, tfhd,
+                                        trex->get_default_sample_duration()));
+  }
 }  // namespace dash2hls
