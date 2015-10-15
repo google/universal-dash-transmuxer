@@ -63,11 +63,14 @@ size_t SidxContents::Parse(const uint8_t* buffer, size_t length) {
   ptr += sizeof(timescale_);
   if (version_ == 0) {
     earliest_presentation_time_ = ntohlFromBuffer(ptr);
-    ptr += sizeof(earliest_presentation_time_);
+    ptr += sizeof(uint32_t );
     first_offset_ = ntohlFromBuffer(ptr);
-    ptr += sizeof(first_offset_);
+    ptr += sizeof(uint32_t);
   } else {
-    printf("Cannot parse version 2 of Sidx");
+    earliest_presentation_time_ = ntohlFromBuffer(ptr);
+    ptr += sizeof(uint64_t);
+    first_offset_ = ntohlFromBuffer(ptr);
+    ptr += sizeof(uint64_t);
     return length;
   }
   ptr += sizeof(uint16_t);

@@ -55,8 +55,8 @@ class SidxContents : public FullBoxContents {
  private:
   uint32_t reference_id_;
   uint32_t timescale_;
-  uint32_t earliest_presentation_time_;
-  uint32_t first_offset_;
+  uint64_t earliest_presentation_time_;
+  uint64_t first_offset_;
   uint16_t reference_count_;
   std::vector<Reference> references_;
   std::vector<DashToHlsSegment> locations_;
