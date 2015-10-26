@@ -3,14 +3,11 @@ If you do not know H.264 then this code can be quite confusing.
 CONTRIBUTIONS
 All non-googlers must sign a Contributing License Agreement (CLA).
 
-The current build system and test system uses the built in gyp, gtest, and
-gmock.  When it is open sourced the open sourced version must use the open
-sourced versions of those.
-
 CUSTOMIZING
 
   Common.gypi must be customized.
   library/mac_test_files.mm needs to be populated with your content.
+  DashToHlsTools.gyp needs to add paths, read the comments in that file.
 
 
 H.264 QUICK TUTORIAL.
