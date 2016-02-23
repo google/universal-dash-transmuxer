@@ -49,7 +49,7 @@ Decode Time Stamp (DTS)
 Program Time Stamp (PTS)
 
 The DTS and  PTS are all in 90KHz clock units.  So a value of 900,000 would be
-10 seconds.  The SCR and PCR are in 27KHz clock units, so 10 seconds would be
+10 seconds.  The SCR and PCR are in 27MHz clock units, so 10 seconds would be
 900,000 * 300 = 270,000,000.
 
 Each Sample must be delivered by either its SCR (PS) or PCR (TS).  Once the
