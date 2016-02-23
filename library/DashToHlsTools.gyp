@@ -26,6 +26,7 @@
       'target_defaults': {
         'xcode_settings': {
           'ARCHS[sdk=macosx*]': 'x86_64',
+          'MACOSX_DEPLOYMENT_TARGET': '10.10',
         },
       },
       'targets': [{
@@ -53,6 +54,9 @@
             'dependencies': [
               'DashToHls.gyp:DashToHlsLibrary',
             ],
+            'libraries': [
+              '$(SDKROOT)/System/Library/Frameworks/AVFoundation.framework',
+          ],
           }],
         },
       ]],

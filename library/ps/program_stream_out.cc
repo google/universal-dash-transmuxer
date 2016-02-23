@@ -58,9 +58,7 @@ void ProgramStreamOut::ProcessSample(const uint8_t* input, size_t input_length,
   bool has_aud;
   nalu::PicType pic_type;
   PreprocessNalus(&pes_data, &has_aud, &pic_type);
-  if (!has_aud) {
-    AddNeededNalu(&pes_data, pic_type, is_sync_sample);
-  }
+  AddNeededNalu(&pes_data, pic_type, is_sync_sample, has_aud);
   ConvertLengthToStartCode(&pes_data);
   pes.AddPayload(&pes_data[0], pes_data.size());
   AddHeaders(pes, is_sync_sample, duration, scr, out);
@@ -78,8 +76,13 @@ void ProgramStreamOut::PreprocessNalus(std::vector<uint8_t>* buffer,
 
 void ProgramStreamOut::AddNeededNalu(std::vector<uint8_t>* buffer,
                                      nalu::PicType pic_type,
-                                     bool is_sync_sample) {
-  size_t bytes_to_shift = nalu::kAudNaluSize + sizeof(uint32_t);
+                                     bool is_sync_sample,
+                                     bool has_aud) {
+  size_t bytes_to_shift = 0;
+  if (!has_aud) {
+    bytes_to_shift = nalu::kAudNaluSize + sizeof(uint32_t);
+  }
+
   if (is_sync_sample) {
     bytes_to_shift += sps_pps_.size();
   }
@@ -89,9 +92,11 @@ void ProgramStreamOut::AddNeededNalu(std::vector<uint8_t>* buffer,
           buffer->size() - bytes_to_shift);
 
   // Add the aud nalu to the beginning (see ISO-14496-10).
-  htonlToBuffer(nalu::kAudNaluSize, &(*buffer)[0]);
-  (*buffer)[sizeof(uint32_t)] = nalu::kNaluType_AuDelimiter;
-  (*buffer)[sizeof(uint32_t) + 1] = (pic_type << 5) | 0x10;
+  if (!has_aud) {
+    htonlToBuffer(nalu::kAudNaluSize, &(*buffer)[0]);
+    (*buffer)[sizeof(uint32_t)] = nalu::kNaluType_AuDelimiter;
+    (*buffer)[sizeof(uint32_t) + 1] = (pic_type << 5) | 0x10;
+  }
 
   if (is_sync_sample) {
     memcpy(&(*buffer)[sizeof(uint32_t) + nalu::kAudNaluSize],

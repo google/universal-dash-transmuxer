@@ -34,7 +34,7 @@
             'dash_to_hls_api_avframework.mm',
           ],
         }],
-        ['OS=="ios"', {
+        ['OS=="ios" or OS=="tvos"', {
           'defines': [
             'USE_AVFRAMEWORK',
           ],

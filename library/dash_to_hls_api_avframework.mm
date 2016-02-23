@@ -20,10 +20,6 @@ limitations under the License.
 #include "include/DashToHlsApiAVFramework.h"
 #include "library/dash_to_hls_session.h"
 
-#if OEMCRYPTO_DYLIB
-extern "C" OEMCrypto_GetRandom(random_data, data_length);
-#endif  // OEMCRYPTO_DYLIB
-
 namespace {
   const size_t kKeySize = 16;
   std::vector<uint8_t> s_key;
@@ -64,7 +60,7 @@ static NSString* kSchemeName = @"wvkey";
       ([resourceLoader isMemberOfClass:[AVAssetResourceLoader class]]) &&
       ([_originalAsset resourceLoader] == resourceLoader)) {
     [loadingRequest.dataRequest respondWithData:[NSData dataWithBytes:s_key.data()
-                                                                   length:s_key.size()]];
+                                                               length:s_key.size()]];
     [loadingRequest finishLoading];
     return YES;
   }
@@ -99,27 +95,32 @@ static NSString* kSchemeName = @"wvkey";
 
 using dash2hls::Session;
 
-void DashToHls_InitializeEncryption(CENC_Random random_function) {
+void SetEncryptOutputFlag(struct DashToHlsSession* session) {
+  Session* dash_session = reinterpret_cast<Session*>(session);
+  dash_session->encrypt_output_ = true;
+}
+
+// Session can be NULL, but the session will not know that encryption is ready.
+void DashToHls_InitializeEncryption(struct DashToHlsSession* session) {
   static dispatch_once_t once;
+  if (session) {
+    SetEncryptOutputFlag(session);
+  }
   dispatch_once(&once, ^{
-    s_DelegateMap = [NSMapTable weakToStrongObjectsMapTable];
-#if OEMCRYPTO_DYLIB
-    random_function = &OEMCrypto_GetRandom;
-#endif // OEMCRYPTO_DYLIB
     s_key.resize(kKeySize);
-    random_function(s_key.data(), kKeySize);
+    SecRandomCopyBytes(NULL, kKeySize, s_key.data());
     s_iv.resize(kKeySize);
-    random_function(s_iv.data(), kKeySize);
+    SecRandomCopyBytes(NULL, kKeySize, s_iv.data());
   });
 }
 
 DashToHlsStatus DashToHls_SetAVURLAsset(AVURLAsset* asset,
                                         id<AVAssetResourceLoaderDelegate> assetDelegate,
                                         dispatch_queue_t queue) {
-  if (s_key.empty()) {
-    NSLog(@"DashToHls_InitializeEncryption must be called before DashToHls_SetAVURLAsset");
-    return kDashToHlsStatus_BadConfiguration;
-  }
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    s_DelegateMap = [NSMapTable weakToStrongObjectsMapTable];
+  });
   if ([asset isMemberOfClass:[AVURLAsset class]]) {
     DashToHLSResourceLoader* udtDelegate =
         [[DashToHLSResourceLoader alloc] initWithDelegate:assetDelegate asset:asset];
@@ -130,12 +131,11 @@ DashToHlsStatus DashToHls_SetAVURLAsset(AVURLAsset* asset,
   return kDashToHlsStatus_OK;
 }
 
-// |session| is not currently used. I want the flexibility to make the keys different for each
-// session in the future without requiring a new API.
+// |session| is currently used for detecting encryption. In the future,
+// it will give the flexibility to use different keys for each session.
 NSString* GetKeyUrl(struct DashToHlsSession* session) {
   if (s_key.empty()) {
-    NSLog(@"DashToHls_InitializeEncryption must be called before GetKeyUrl");
-    return @"";
+    DashToHls_InitializeEncryption(session);
   }
   return [NSString stringWithFormat:@"#EXT-X-KEY:METHOD=AES-128,URI=\"%@"
               @"://key.bin\",IV=0x%02x%02x%02x%02x%02x%02x%02x%02x%02x"
@@ -145,14 +145,6 @@ NSString* GetKeyUrl(struct DashToHlsSession* session) {
 }
 
 namespace dash2hls {
-
-bool is_encrypting() {
-#if OEMCRYPTO_DYLIB
-  return true;
-#else  // OEMCRYPTO_DYLIB
-  return !s_key.empty();
-#endif  // OEMCRYPTO_DYLIB
-}
 
 bool Encrypt(const DashToHlsSession* session, std::vector<uint8_t>* block) {
   if (s_key.empty()) {
@@ -177,6 +169,6 @@ bool Encrypt(const DashToHlsSession* session, std::vector<uint8_t>* block) {
   encrypted_data.resize(encrypted_length);
   block->resize(encrypted_length);
   memcpy(block->data(), encrypted_data.data(), block->size());
-  return true;
+  return status == kCCSuccess;
 }
 }  // namespace dash2hls

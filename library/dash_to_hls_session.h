@@ -28,22 +28,23 @@ namespace dash2hls {
 class Session {
  public:
   Session() :
-      is_video_(false), is_encrypted_(false), pssh_handler_(nullptr),
-      decryption_handler_(nullptr), default_iv_size_(0), nalu_length_(0),
-      audio_object_type_(0), sampling_frequency_index_(0), channel_config_(0),
-      pssh_context_(nullptr), decryption_context_(nullptr), timescale_(0),
-      trex_default_sample_duration_(0) {
+      is_video_(false), is_encrypted_(false), encrypt_output_(false),
+      pssh_handler_(nullptr), decryption_handler_(nullptr),
+      default_iv_size_(0), nalu_length_(0), audio_object_type_(0),
+      sampling_frequency_index_(0), channel_config_(0),
+      pssh_context_(nullptr), decryption_context_(nullptr),
+      timescale_(0), trex_default_sample_duration_(0) {
   }
-  bool is_video_;
-  DashParser parser_;
-  DashToHlsIndex index_;
+  bool encrypt_output_;
   bool is_encrypted_;
+  bool is_video_;
   CENC_PsshHandler pssh_handler_;
   CENC_DecryptionHandler decryption_handler_;
-  std::vector<uint8_t> reencryption_key;
+  DashToHlsIndex index_;
+  DashParser parser_;
   size_t default_iv_size_;
-
   std::map<uint32_t, std::vector<uint8_t> > output_;
+  std::vector<uint8_t> reencryption_key;
 
   // Video specific settings.
   std::vector<uint8_t> sps_pps_;

@@ -190,6 +190,22 @@ TEST(DashToHlsApi, ParseDashList) {
                                 &hls_segment, &hls_length));
 }
 
+extern "C" void
+DashToHls_TestContent(unsigned char* content, size_t length);
+TEST(DashToHlsApi, TestTheTestRoutine) {
+  FILE* file = Dash2HLS_GetTestVideoFile();
+  ASSERT_NE(reinterpret_cast<FILE*>(0), file);
+  size_t bytes_read = 0;
+  fseek(file, 0, SEEK_END);
+  size_t bytes_to_read = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  std::vector<uint8_t> buffer(bytes_to_read);
+
+  bytes_read = fread(buffer.data(), 1, bytes_to_read, file);
+  ASSERT_EQ(bytes_to_read, bytes_read);
+  DashToHls_TestContent(buffer.data(), buffer.size());
+}
+
 namespace internal {
   uint64_t GetDuration(const TrunContents* trun,
                        const TrunContents::TrackRun* track_run,

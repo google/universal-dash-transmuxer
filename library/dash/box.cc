@@ -45,8 +45,6 @@ limitations under the License.
 #include "library/dash/unknown_contents.h"
 #include "library/utilities.h"
 
-using std::string;
-
 namespace dash2hls {
 
 Box::Box(uint64_t stream_position)
@@ -203,15 +201,16 @@ size_t Box::Parse(const uint8_t* buffer, size_t length) {
   return length - bytes_left;
 }
 
-string Box::PrettyPrint(std::string indent) const {
+std::string Box::PrettyPrint(std::string indent) const {
   switch (state_) {
     case kInitialState: return "Unparsed Box\n";
     case kReadingType: return "Unparsed Box\n";
     case kReadingBytes:
-      return string("Box<") + type_.PrettyPrint(indent + "  ") + ":" +
+      return PrettyPrintValue(stream_position_) + std::string("-Box<") +
+          type_.PrettyPrint(indent + "  ") + ":" +
           PrettyPrintValue(size_) + "> still reading";
     case kParsed:
-      return PrettyPrintValue(stream_position_) + string("-Box<") +
+      return PrettyPrintValue(stream_position_) + std::string("-Box<") +
           type_.PrettyPrint(indent + " ") + ":" + PrettyPrintValue(size_) +
           " " + contents_->BoxName() + "> " +
           contents_->PrettyPrint(indent + " ");

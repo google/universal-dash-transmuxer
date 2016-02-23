@@ -135,6 +135,22 @@ DashToHlsStatus DashToHls_ParseLive(struct DashToHlsSession* session,
                                     const uint8_t** hls_segment,
                                     size_t* hls_length);
 
+// API designed to handle dash data and produce HLS Transport stream (.ts)
+// segments.  The |hls_segment| is owned by the |session| and freed
+// when ReleaseHlsSegment or ReleaseSession is called.
+//
+// TODO(seawardt): Build out functionality to handle multiple APIs.
+// This API will eventually deprecate ConvertDashSegment,
+// ConvertDashSegmentData and ParseLive.
+// Changes to new naming convention of UDT.
+// Forces Encryption to be turned on for HLS Output.
+DashToHlsStatus UDT_ConvertDash(struct DashToHlsSession* session,
+                                uint32_t segment_number,
+                                const uint8_t* dash_data,
+                                size_t dash_data_size,
+                                const uint8_t** segment_out,
+                                size_t* segment_out_size);
+
 // Takes one moof/mdat section and converts it to an HLS ts segment.  The
 // |hls_segment| is owned by the |session| and freed when ReleaseHlsSegment
 // or ReleaseSession is called.

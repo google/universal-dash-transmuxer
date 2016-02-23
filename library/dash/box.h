@@ -81,7 +81,7 @@ class Box {
   size_t size_;
   BoxType type_;
   size_t bytes_read_;
-  dash2hls::shared_ptr<BoxContents> contents_;
+  shared_ptr<BoxContents> contents_;
   uint64_t stream_position_;
 };
 }  // namespace dash2hls

@@ -49,6 +49,11 @@ void AdtsOut::AddTimestamp(uint64_t pts, std::vector<uint8_t>* out) {
                  &(*out)[out->size() - kID3AudioTimeTagTimeOffsetFromEnd]);
 }
 
+  static const uint8_t kMPEG4AudioTypeAACMain = 1;
+  static const uint8_t kMPEG4AudioTypeAACLTP = 4;
+  // This MPEG4 audio type is used for AAC HEv2.
+  static const uint8_t kMPEG4AudioTypeParametricStereo = 29;
+
 // TODO(justsomeguy) Code copied from the Widevine tree has quite a few
 // magic numbers.  This is because it builds up the header by adding bits
 // and shifting, adding bits and shifting.  I want to rewrite this to build
@@ -67,7 +72,21 @@ void AdtsOut::ProcessSample(const uint8_t* input, size_t input_length,
   adts_header <<= 4;
   adts_header |= 0x01;
   adts_header <<= 2;
-  adts_header |= (audio_object_type_ - 1);
+
+  uint8_t profile = 0;
+
+  if (audio_object_type_ >= kMPEG4AudioTypeAACMain && audio_object_type_ <= kMPEG4AudioTypeAACLTP) {
+    profile = audio_object_type_ - 1;
+  } else if (audio_object_type_ == kMPEG4AudioTypeParametricStereo) {
+    profile = 2;
+  } else {
+    DASH_LOG("Bad audio sample",
+             "Unsupported MPEG4 audio type.",
+             DumpMemory(input, input_length).c_str());
+    return;
+  }
+
+  adts_header |= profile;
   adts_header <<= 4;
   adts_header |= sampling_frequency_index_;
   adts_header <<= 4;

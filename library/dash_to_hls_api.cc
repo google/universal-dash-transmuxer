@@ -86,7 +86,7 @@ uint64_t GetDuration(const TrunContents* trun,
   uint64_t duration = 0;
   if (trun->IsSampleDurationPresent()) {
     duration = track_run->sample_duration_;
-  } else if (tfhd->IsDefaultSampleDurationPresent()){
+  } else if (tfhd->IsDefaultSampleDurationPresent()) {
     duration = tfhd->get_default_sample_duration();
   } else {
     duration = trex_default_sample_duration;
@@ -109,13 +109,21 @@ uint64_t GetDuration(const TrunContents* trun,
 
 void ProcessPsshBoxes(Session* session,
                       const std::vector<const Box*>& pssh_boxes) {
+  std::vector<uint8_t> concatenated_boxes;
   for (auto iter = pssh_boxes.begin(); iter != pssh_boxes.end(); ++iter) {
     const PsshContents* pssh =
         reinterpret_cast<const PsshContents*>((*iter)->get_contents());
+    size_t pos = concatenated_boxes.size();
+    concatenated_boxes.resize(pos + pssh->get_full_box().size());
+    memcpy(&concatenated_boxes[pos],
+           pssh->get_full_box().data(),
+           pssh->get_full_box().size());
+  }
+  if (concatenated_boxes.size()) {
     session->is_encrypted_ = true;
     session->pssh_handler_(session->pssh_context_,
-                           pssh->get_full_box().data(),
-                           pssh->get_full_box().size());
+                           concatenated_boxes.data(),
+                           concatenated_boxes.size());
   }
 }
 }  // namespace internal
@@ -505,14 +513,6 @@ bool DecryptSample(const Session* session, uint32_t sample_number,
   return true;
 }
 
-bool Reencrypt(const Session* dash_session, std::vector<uint8_t>* ts_output) {
-#ifdef USE_AVFRAMEWORK
-  return Encrypt(reinterpret_cast<const DashToHlsSession*>(dash_session),
-                 ts_output);
-#endif
-  return true;
-}
-
 DashToHlsStatus TransmuxToTS(const Session* dash_session,
                              const MdatContents* mdat,
                              const BoxContents* moof,
@@ -629,8 +629,9 @@ DashToHlsStatus TransmuxToTS(const Session* dash_session,
     dts += duration;
   }
 #ifdef USE_AVFRAMEWORK
-  if (is_encrypting()) {
-    if (!Reencrypt(dash_session, ts_output)) {
+  if (dash_session->encrypt_output_) {
+    if (!Encrypt(reinterpret_cast<const DashToHlsSession*>(dash_session),
+                 ts_output)) {
       return kDashToHlsStatus_BadConfiguration;
     }
   }
@@ -676,23 +677,22 @@ DashToHls_ParseLivePssh(DashToHlsSession* session, const uint8_t* bytes,
 
   // Check for CENC.
   const Box* box = dash_session->parser_.FindDeep(BoxType::kBox_tenc);
-  if (box) {
-    const std::vector<const Box*> pssh_boxes =
-      dash_session->parser_.FindDeepAll(BoxType::kBox_pssh);
-    if (pssh_boxes.empty()) {
-      DASH_LOG("Missing boxes.", "Missing pssh box", "");
-      return kDashToHlsStatus_BadConfiguration;
-    }
-
-    if (!dash_session->pssh_handler_ || !dash_session->decryption_handler_) {
-      DASH_LOG("Bad Configuration.", "Missing required callback for CENC",
-               "");
-      return kDashToHlsStatus_BadConfiguration;
-    }
-    internal::ProcessPsshBoxes(dash_session, pssh_boxes);
-  } else {
+  if (!box) {
     return kDashToHlsStatus_ClearContent;
   }
+  const std::vector<const Box*> pssh_boxes =
+    dash_session->parser_.FindDeepAll(BoxType::kBox_pssh);
+  if (pssh_boxes.empty()) {
+    DASH_LOG("Missing boxes.", "Missing pssh box", "");
+    return kDashToHlsStatus_BadConfiguration;
+  }
+
+  if (!dash_session->pssh_handler_ || !dash_session->decryption_handler_) {
+    DASH_LOG("Bad Configuration.", "Missing required callback for CENC",
+             "");
+    return kDashToHlsStatus_BadConfiguration;
+  }
+  internal::ProcessPsshBoxes(dash_session, pssh_boxes);
   return kDashToHlsStatus_OK;
 }
 
@@ -869,12 +869,61 @@ DashToHls_ConvertDashSegmentData(DashToHlsSession* session,
 }
 
 extern "C" DashToHlsStatus
+UDT_ConvertDash(DashToHlsSession* session,
+                uint32_t segment_number,
+                const uint8_t* dash_data,
+                size_t dash_data_size,
+                const uint8_t** segment_out,
+                size_t* segment_out_size) {
+  const MdatContents* mdat = nullptr;
+  const BoxContents* moof = nullptr;
+  const TfdtContents* tfdt = nullptr;
+  const TfhdContents* tfhd = nullptr;
+  const TrunContents* trun = nullptr;
+  const SaioContents* saio = nullptr;
+  const SaizContents* saiz = nullptr;
+  const TencContents* tenc = nullptr;
+
+  Session* dash_session = reinterpret_cast<Session*>(session);
+  dash_session->encrypt_output_ = true;
+  DashParser dash_parser;
+  if (dash_parser.Parse(dash_data, dash_data_size) == 0) {
+    return kDashToHlsStatus_BadDashContents;
+  }
+  DashToHlsStatus result = GetNeededBoxes(dash_session->is_encrypted_,
+                                          0, dash_parser,
+                                          &mdat, &moof, &tfdt, &tfhd,
+                                          &trun, &saio, &saiz, &tenc);
+  if (result != kDashToHlsStatus_OK) {
+    return result;
+  }
+
+  result = TransmuxToTS(dash_session, mdat,  moof, tfdt, tfhd,
+                        trun, saio, saiz, tenc,
+                        &dash_session->output_[segment_number]);
+  if (result == kDashToHlsStatus_OK) {
+    *segment_out = &dash_session->output_[segment_number][0];
+    *segment_out_size = dash_session->output_[segment_number].size();
+  }
+  return result;
+}
+
+extern "C" DashToHlsStatus
 DashToHls_ConvertDashSegment(DashToHlsSession* session,
                              uint32_t segment_number,
                              const uint8_t* dash_segment,
                              size_t dash_segment_size,
                              const uint8_t** hls_segment,
                              size_t* hls_length) {
+  const MdatContents* mdat = nullptr;
+  const BoxContents* moof = nullptr;
+  const TfdtContents* tfdt = nullptr;
+  const TfhdContents* tfhd = nullptr;
+  const TrunContents* trun = nullptr;
+  const SaioContents* saio = nullptr;
+  const SaizContents* saiz = nullptr;
+  const TencContents* tenc = nullptr;
+
   Session* dash_session = reinterpret_cast<Session*>(session);
   DashParser parser;
   // The parser relies on offsets from the beginning of the file.
@@ -885,14 +934,6 @@ DashToHls_ConvertDashSegment(DashToHlsSession* session,
     return kDashToHlsStatus_BadDashContents;
   }
 
-  const MdatContents* mdat = nullptr;
-  const BoxContents* moof = nullptr;
-  const TfdtContents* tfdt = nullptr;
-  const TfhdContents* tfhd = nullptr;
-  const TrunContents* trun = nullptr;
-  const SaioContents* saio = nullptr;
-  const SaizContents* saiz = nullptr;
-  const TencContents* tenc = nullptr;
 
   size_t segment_count = 0;
 
@@ -965,4 +1006,13 @@ DashToHls_SetCenc_DecryptSample(DashToHlsSession* session,
   dash_session->decryption_context_ = context;
   return kDashToHlsStatus_OK;
 }
+
+// Test routine used to validate UDT does not crash on bad content.
+extern "C" void
+DashToHls_TestContent(unsigned char* content, size_t length) {
+    Session* dash_session = new Session;
+    dash_session->parser_.Parse(content, length);
+    delete dash_session;
+}
 }  // namespace dash2hls
+
