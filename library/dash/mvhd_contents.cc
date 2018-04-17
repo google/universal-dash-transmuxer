@@ -78,8 +78,8 @@ size_t MvhdContents::Parse(const uint8_t* buffer, size_t length) {
     ptr += sizeof(uint64_t);
     modification_time_ = ntohllFromBuffer(ptr);
     ptr += sizeof(uint64_t);
-    timescale_ = ntohllFromBuffer(ptr);
-    ptr += sizeof(uint64_t);
+    timescale_ = ntohlFromBuffer(ptr);
+    ptr += sizeof(uint32_t);
     duration_ = ntohllFromBuffer(ptr);
     ptr += sizeof(uint64_t);
   }

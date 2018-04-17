@@ -20,14 +20,12 @@ limitations under the License.
 
 namespace {
 NSString* kMp4BoxInitSegment = @"mp4box_init";
-NSString* kDashSampleCencVideoFile = @"";
-NSString* kDashSampleCencAudioFile = @"";
-NSString* kDashSampleVideoFile = @"";
-NSString* kDashSampleAudioFile = @"";
-NSString* kDashSampleVideoHeader = @"";
-NSString* kDashSampleAudioHeader = @"";
-NSString* kDashSampleVideoSegment = @"";
-NSString* kDashSampleAudioSegment = @"";
+NSString* kDashSampleCencVideoFile = @"sintel-cenc-video";
+NSString* kDashSampleCencAudioFile = @"sintel-cenc-audio";
+NSString* kDashSampleVideoFile = @"dash-160";
+NSString* kDashSampleAudioFile = @"dash-139";
+NSString* kDashSampleVideoHeader = @"sintel-cenc-video-header";
+NSString* kDashSampleVideoSegment = @"sintel-cenc-video-segment3";
 }  // namespace
 
 FILE* Dash2HLS_GetTestVideoFile() {
@@ -65,23 +63,9 @@ FILE* Dash2HLS_GetTestCencVideoHeader() {
   return fopen([mp4_path UTF8String], "r");
 }
 
-FILE* Dash2HLS_GetTestCencAudioHeader() {
-  NSString* mp4_path =
-      [[NSBundle mainBundle] pathForResource:kDashSampleAudioHeader
-           ofType:@"mp4"];
-  return fopen([mp4_path UTF8String], "r");
-}
-
 FILE* Dash2HLS_GetTestCencVideoSegment() {
   NSString* mp4_path =
       [[NSBundle mainBundle] pathForResource:kDashSampleVideoSegment
-           ofType:@"mp4"];
-  return fopen([mp4_path UTF8String], "r");
-}
-
-FILE* Dash2HLS_GetTestCencAudioSegment() {
-  NSString* mp4_path =
-      [[NSBundle mainBundle] pathForResource:kDashSampleAudioSegment
            ofType:@"mp4"];
   return fopen([mp4_path UTF8String], "r");
 }

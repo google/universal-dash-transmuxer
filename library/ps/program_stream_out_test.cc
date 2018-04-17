@@ -297,7 +297,7 @@ TEST(ProgramStreamOut, InternalRoutines) {
   EXPECT_EQ(false, has_aud);
   EXPECT_EQ(nalu::kPicType_I, pic_type);
 
-  ps_out.AddNeededNalu(&buffer, pic_type, true);
+  ps_out.AddNeededNalu(&buffer, pic_type, true, false);
   EXPECT_THAT(make_pair(&buffer[0], buffer.size()),
               testing::MemEq(kExpectedWithSpsPpsAud,
                              sizeof(kExpectedWithSpsPpsAud)));

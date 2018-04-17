@@ -4,6 +4,8 @@
 #include "library/ps/pes.h"
 #include "library/utilities.h"
 
+#include <assert.h>
+
 namespace {
 const uint8_t kDefaultFlags1 = 0x80;
 const uint8_t kDefaultFlags2 = 0x00;
@@ -200,6 +202,8 @@ size_t PES::WritePartial(uint8_t* buffer, size_t start, size_t length) const {
     length -= bytes_written;
     buffer += bytes_written;
   }
+  // Assert that we aren't reading past the end of the payload:
+  assert(start - GetHeaderSize() + length <= payload_size_);
   memcpy(buffer, payload_ + start - GetHeaderSize(), length);
   return bytes_written + length;
 }

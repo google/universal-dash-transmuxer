@@ -23,6 +23,7 @@ limitations under the License.
 namespace dash2hls {
 namespace nalu {
 
+// Reads an integer of size |nalu_length_size| bytes from |nalu|.
 size_t GetLength(const uint8_t* nalu, size_t buffer_length,
                  size_t nalu_length_size) {
   if (buffer_length < nalu_length_size) {
@@ -58,7 +59,7 @@ bool AdvanceBit(const uint8_t** buffer, uint32_t* buffer_size,
 }  // namespace
 
 int32_t ReadBitsLength(const uint8_t** buffer, uint32_t* buffer_size,
-                      uint8_t* current_byte, uint32_t* bit_offset) {
+                       uint8_t* current_byte, uint32_t* bit_offset) {
   uint32_t number_of_bits = 0;
   while (*buffer_size > 0 && !(*current_byte & 0x80)) {
     ++number_of_bits;
@@ -129,14 +130,15 @@ size_t PreprocessNalus(uint8_t* nalu_buffer, size_t buffer_size,
   while (read_ptr < nalu_end) {
     size_t length = GetLength(read_ptr, nalu_end - read_ptr,
                               nalu_length_size);
-    if (!length || (read_ptr + length > nalu_end)) {
+    if (!length || (read_ptr + length + nalu_length_size > nalu_end)) {
       return DashParser::kParseFailure;
     }
     uint8_t nalu_type = read_ptr[nalu_length_size] & kNaluTypeMask;
     if (nalu_type != kNaluType_Filler) {
       // Only need to copy bytes if a padding nalu has been skipped.
       if (read_ptr > write_ptr) {
-        memcpy(write_ptr, read_ptr, nalu_length_size + length);
+        // IMPORTANT!  Use memmove, because the ranges MAY overlap!
+        memmove(write_ptr, read_ptr, nalu_length_size + length);
       }
       write_ptr += nalu_length_size + length;
       switch (nalu_type) {
@@ -150,7 +152,7 @@ size_t PreprocessNalus(uint8_t* nalu_buffer, size_t buffer_size,
             // See ISO 14496-10 section 7.4.3 for details.
             // Slices 5-9 are really slices 0-4 for our purposes.
             if (slice_type >= 5) {
-              slice_type -=5;
+              slice_type -= 5;
             }
             if (slice_type < 5) {
               frame_types[slice_type] = true;
@@ -163,7 +165,7 @@ size_t PreprocessNalus(uint8_t* nalu_buffer, size_t buffer_size,
         default:
           break;
       }
-    }
+    }  // if (nalu_type != kNaluTypefiller)
     read_ptr += nalu_length_size + length;
     if (read_ptr > nalu_end) {
       return DashParser::kParseFailure;

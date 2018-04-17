@@ -22,6 +22,8 @@ limitations under the License.
 #include "library/ps/system_header.h"
 #include "library/utilities.h"
 
+#include <assert.h>
+
 namespace {
 const size_t kPackHeaderLength = 10;
 const uint32_t kScrRatio = 300;
@@ -58,9 +60,7 @@ void ProgramStreamOut::ProcessSample(const uint8_t* input, size_t input_length,
   bool has_aud;
   nalu::PicType pic_type;
   PreprocessNalus(&pes_data, &has_aud, &pic_type);
-  if (!has_aud) {
-    AddNeededNalu(&pes_data, pic_type, is_sync_sample);
-  }
+  AddNeededNalu(&pes_data, pic_type, is_sync_sample, has_aud);
   ConvertLengthToStartCode(&pes_data);
   pes.AddPayload(&pes_data[0], pes_data.size());
   AddHeaders(pes, is_sync_sample, duration, scr, out);
@@ -78,8 +78,13 @@ void ProgramStreamOut::PreprocessNalus(std::vector<uint8_t>* buffer,
 
 void ProgramStreamOut::AddNeededNalu(std::vector<uint8_t>* buffer,
                                      nalu::PicType pic_type,
-                                     bool is_sync_sample) {
-  size_t bytes_to_shift = nalu::kAudNaluSize + sizeof(uint32_t);
+                                     bool is_sync_sample,
+                                     bool has_aud) {
+  size_t bytes_to_shift = 0;
+  if (!has_aud) {
+    bytes_to_shift = nalu::kAudNaluSize + sizeof(uint32_t);
+  }
+
   if (is_sync_sample) {
     bytes_to_shift += sps_pps_.size();
   }
@@ -89,9 +94,11 @@ void ProgramStreamOut::AddNeededNalu(std::vector<uint8_t>* buffer,
           buffer->size() - bytes_to_shift);
 
   // Add the aud nalu to the beginning (see ISO-14496-10).
-  htonlToBuffer(nalu::kAudNaluSize, &(*buffer)[0]);
-  (*buffer)[sizeof(uint32_t)] = nalu::kNaluType_AuDelimiter;
-  (*buffer)[sizeof(uint32_t) + 1] = (pic_type << 5) | 0x10;
+  if (!has_aud) {
+    htonlToBuffer(nalu::kAudNaluSize, &(*buffer)[0]);
+    (*buffer)[sizeof(uint32_t)] = nalu::kNaluType_AuDelimiter;
+    (*buffer)[sizeof(uint32_t) + 1] = (pic_type << 5) | 0x10;
+  }
 
   if (is_sync_sample) {
     memcpy(&(*buffer)[sizeof(uint32_t) + nalu::kAudNaluSize],
@@ -140,8 +147,8 @@ void ProgramStreamOut::AddHeaders(const PES& pes,
 
     size_t size = GetSizeOfSyncPacket(is_sync_sample, system_header, psm, pes);
     out->resize(size);
-    uint8_t *buffer = &(*out)[0];
-    uint8_t *end_ptr = &(*out)[out->size()];
+    uint8_t *buffer = out->data();
+    const uint8_t *end_ptr = out->data() + out->size();
     uint32_t mux_rate =
         static_cast<uint32_t>((size * kClockRate) / (50 * duration));
     buffer += WriteHeader(buffer, scr * kScrRatio, mux_rate);
@@ -149,25 +156,21 @@ void ProgramStreamOut::AddHeaders(const PES& pes,
                                   static_cast<uint32_t>(end_ptr - buffer));
     buffer += psm.Write(buffer, static_cast<uint32_t>(end_ptr - buffer));
     buffer += pes.Write(buffer, static_cast<uint32_t>(end_ptr - buffer));
-    if (buffer != end_ptr) {
-      DASH_LOG("ProgramStream AddHeaders failed.",
-               "ProgramStream should have added more bytes.",
-               "");
-    }
+
+    // Ensure we wrote exactly the right number of bytes.
+    assert(buffer == end_ptr);
   } else {
     size_t size = GetSize(pes);
     out->resize(size);
-    uint8_t *buffer = &(*out)[0];
-    uint8_t *end_ptr = &(*out)[out->size()];
+    uint8_t *buffer = out->data();
+    const uint8_t *end_ptr = out->data() + out->size();
     uint32_t mux_rate =
         static_cast<uint32_t>((size * kClockRate) / (50 * duration));
     buffer += WriteHeader(buffer, scr * kScrRatio, mux_rate);
     buffer += pes.Write(buffer, static_cast<uint32_t>(end_ptr - buffer));
-    if (buffer != end_ptr) {
-      DASH_LOG("ProgramStream AddHeaders failed.",
-               "ProgramStream should have added more bytes.",
-               "");
-    }
+
+    // Ensure we wrote exactly the right number of bytes.
+    assert(buffer == end_ptr);
   }
 }
 
@@ -175,7 +178,7 @@ void ProgramStreamOut::AddHeaders(const PES& pes,
 // TODO(justsomeguy) Track down magic numbers and use constants.
 size_t ProgramStreamOut::WriteHeader(uint8_t* buffer, uint64_t scr,
                                      uint32_t mux_rate) {
-  uint8_t* original_buffer = buffer;
+  const uint8_t* original_buffer = buffer;
   memcpy(buffer, kPackStartCode, sizeof(kPackStartCode));
   buffer += sizeof(kPackStartCode);
   uint64_t base = scr / kScrRatio;
@@ -198,14 +201,22 @@ size_t ProgramStreamOut::WriteHeader(uint8_t* buffer, uint64_t scr,
   encoded <<= 1;      // marker bit
   encoded |= 0x01;
   encoded <<= 16;     // shift lower 48 bits to the front
+
   htonllToBuffer(encoded, buffer);
   buffer += 6;
+  // NOTE: we just wrote 8 bytes, even though we are only keeping the first 6.
+  // This is safe because we the 2 byte overflow is the following field.
+
   htonlToBuffer((mux_rate << 10) | 0x00000300, buffer);   // mux rate
   buffer += 3;
+  // NOTE: we just wrote 4 bytes, even though we are only keeping the first 3.
+  // This is safe because we the 1 byte overflow is the following field.
 
   *buffer = 0xF8;  // reserved + stuffing length
   // Insert DVD padding here if we ever want DVD padding.
   ++buffer;
+
+  assert(buffer - original_buffer == GetHeaderSize());
   return buffer - original_buffer;
 }
 

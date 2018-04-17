@@ -18,6 +18,8 @@ limitations under the License.
 
 #include "library/utilities.h"
 
+#include <assert.h>
+
 namespace {
 const uint8_t kAdaptationBit = 0x20;
 const uint8_t kAdaptationFiller = 0xff;
@@ -141,9 +143,7 @@ void TransportStreamOut::ProcessSample(const uint8_t* input,
     bool has_aud;
     nalu::PicType pic_type;
     PreprocessNalus(&pes_data, &has_aud, &pic_type);
-    if (!has_aud) {
-      AddNeededNalu(&pes_data, pic_type, is_sync_sample);
-    }
+    AddNeededNalu(&pes_data, pic_type, is_sync_sample, has_aud);
     ConvertLengthToStartCode(&pes_data);
     pes.AddPayload(&pes_data[0], pes_data.size());
   } else {
@@ -193,8 +193,13 @@ void TransportStreamOut::PreprocessNalus(std::vector<uint8_t>* buffer,
 
 void TransportStreamOut::AddNeededNalu(std::vector<uint8_t>* buffer,
                                        nalu::PicType pic_type,
-                                       bool is_sync_sample) {
-  size_t bytes_to_shift = nalu::kAudNaluSize + sizeof(uint32_t);
+                                       bool is_sync_sample,
+                                       bool has_aud) {
+  size_t bytes_to_shift = 0;
+  if (!has_aud) {
+    bytes_to_shift = nalu::kAudNaluSize + sizeof(uint32_t);
+  }
+
   if (is_sync_sample) {
     bytes_to_shift += sps_pps_.size();
   }
@@ -208,9 +213,11 @@ void TransportStreamOut::AddNeededNalu(std::vector<uint8_t>* buffer,
   // fixed to be correct.
   //
   // Add the aud nalu to the beginning (see ISO-14496-10).
-  htonlToBuffer(nalu::kAudNaluSize, &(*buffer)[0]);
-  (*buffer)[sizeof(uint32_t)] = nalu::kNaluType_AuDelimiter;
-  (*buffer)[sizeof(uint32_t) + 1] = (pic_type << 5) | 0x10;
+  if (!has_aud) {
+    htonlToBuffer(nalu::kAudNaluSize, &(*buffer)[0]);
+    (*buffer)[sizeof(uint32_t)] = nalu::kNaluType_AuDelimiter;
+    (*buffer)[sizeof(uint32_t) + 1] = (pic_type << 5) | 0x10;
+  }
 
   if (is_sync_sample) {
     memcpy(&(*buffer)[sizeof(uint32_t) + nalu::kAudNaluSize],
@@ -229,15 +236,16 @@ void TransportStreamOut::OutputRawDataOverTS(const uint8_t* data,
                                              size_t length, uint16_t pid,
                                              uint16_t* continuity_counter,
                                              std::vector<uint8_t>* out) {
-  uint32_t num_packets = static_cast<uint32_t>(length / kTsPayloadSize);
-  if (length % kTsPayloadSize) {
-    ++num_packets;
-  }
+  size_t num_packets = (length + kTsPayloadSize - 1) / kTsPayloadSize;
+
   size_t original_out_size = out->size();
   out->resize(original_out_size + num_packets * kTsPacketSize);
-  uint8_t* write_pointer = &(*out)[original_out_size];
+
+  uint8_t* write_pointer = out->data() + original_out_size;
   bool first_packet = true;
   while (num_packets > 0) {
+    const uint8_t* start_of_packet = write_pointer;
+
     *write_pointer = kTsSync;
     ++write_pointer;
     if (first_packet) {
@@ -253,11 +261,9 @@ void TransportStreamOut::OutputRawDataOverTS(const uint8_t* data,
     if (length < kTsPayloadSize) {
       adaptation_size = kTsPayloadSize - length;
       bytes_to_write = length;
-      length = 0;
       *write_pointer = kAdaptationBit | kPayloadBit;
     } else {
       bytes_to_write = kTsPayloadSize;
-      length -= kTsPayloadSize;
       *write_pointer = kPayloadBit;
     }
     *write_pointer |= (*continuity_counter & kContinuityMask);
@@ -278,8 +284,15 @@ void TransportStreamOut::OutputRawDataOverTS(const uint8_t* data,
     memcpy(write_pointer, data, bytes_to_write);
     data += bytes_to_write;
     write_pointer += bytes_to_write;
+    length -= bytes_to_write;
     --num_packets;
+
+    // Make sure we wrote exactly the packet size we should have.
+    assert(write_pointer - start_of_packet == kTsPacketSize);
   }
+
+  // Make sure we wrote exactly the amount of output data we meant to.
+  assert(write_pointer == out->data() + out->size());
 }
 
 // TODO(justsomeguy)  There's still magic numbers in here.  Really need to
@@ -288,20 +301,24 @@ void TransportStreamOut::OutputPesOverTS(const PES& pes, uint16_t pid,
                                          int64_t pcr,
                                          uint16_t* continuity_counter,
                                          std::vector<uint8_t>* out) {
-  size_t length = pes.GetSize();
-  if (pcr != kNoPcr) {
-    length += kPcrAdaptationSize;
-  }
-  uint32_t num_packets = static_cast<uint32_t>(length / kTsPayloadSize);
-  if (length % kTsPayloadSize) {
-    ++num_packets;
-  }
+  // These will be reduced as the data they represent is written to output.
+  size_t pes_length = pes.GetSize();
+  size_t extra_length = (pcr == kNoPcr) ? 0 : kPcrAdaptationSize;
+
+  const size_t total_length = pes_length + extra_length;
+
+  // This will be decremented each time a packet is written to output.
+  size_t num_packets = (total_length + kTsPayloadSize - 1) / kTsPayloadSize;
+
   size_t original_out_size = out->size();
   out->resize(original_out_size + num_packets * kTsPacketSize);
-  uint8_t* write_pointer = &(*out)[original_out_size];
+
+  uint8_t* write_pointer = out->data() + original_out_size;
   bool first_packet = true;
   size_t pes_position = 0;
   while (num_packets > 0) {
+    const uint8_t* start_of_packet = write_pointer;
+
     *write_pointer = kTsSync;
     ++write_pointer;
     if (first_packet) {
@@ -311,19 +328,19 @@ void TransportStreamOut::OutputPesOverTS(const PES& pes, uint16_t pid,
     }
     write_pointer += sizeof(pid);
 
-    size_t adaptation_size = 0;
-    if (first_packet  && (pcr != kNoPcr)) {
-      adaptation_size = kPcrAdaptationSize;
+    size_t adaptation_size = extra_length;
+
+    // Number of PES bytes to write in this packet
+    size_t pes_bytes_to_write = kTsPayloadSize - adaptation_size;
+
+    // If the PES data left is not large enough to fill the packet, increase
+    // the adaptation size to add extra filler.
+    if (pes_bytes_to_write > pes_length) {
+      size_t filler_bytes = pes_bytes_to_write - pes_length;
+      pes_bytes_to_write = pes_length;
+      adaptation_size += filler_bytes;
     }
-    size_t bytes_to_write = 0;
-    if (length < kTsPayloadSize) {
-      adaptation_size += kTsPayloadSize - length;
-      bytes_to_write = length;
-      length = 0;
-    } else {
-      bytes_to_write = kTsPayloadSize - adaptation_size;
-      length -= kTsPayloadSize;
-    }
+
     if (adaptation_size > 0) {
       *write_pointer = kAdaptationBit | kPayloadBit;
     } else {
@@ -334,13 +351,22 @@ void TransportStreamOut::OutputPesOverTS(const PES& pes, uint16_t pid,
     ++write_pointer;
 
     if (adaptation_size > 0) {
+      // adaptation field size, not including the size byte
       *write_pointer = adaptation_size - 1;
       ++write_pointer;
       --adaptation_size;
+
       if (adaptation_size > 0) {
         if (first_packet && (pcr != kNoPcr)) {
+          // If we land here, we should have accounted for space to put the
+          // adaptation field with the optional PCR field in it.
+          assert(adaptation_size >= 7);
+
+          // adaptation field flags:
           *write_pointer = kAdaptationPcr;
           ++write_pointer;
+
+          // PCR field, 33 bits PCR, 6 reserved bits, 9 extension bits:
           htonlToBuffer(static_cast<uint32_t>(pcr >> 1), write_pointer);
           write_pointer += sizeof(uint32_t);
           *write_pointer = (pcr & 0x01) ? 0x80 : 0x00;
@@ -348,21 +374,39 @@ void TransportStreamOut::OutputPesOverTS(const PES& pes, uint16_t pid,
           ++write_pointer;
           *write_pointer = 0;
           ++write_pointer;
+
           adaptation_size -= 7;
         } else {
           *write_pointer = 0;
           ++write_pointer;
           --adaptation_size;
         }
+
+        // write filler:
         memset(write_pointer, kAdaptationFiller, adaptation_size);
         write_pointer += adaptation_size;
       }
     }
-    pes.WritePartial(write_pointer, pes_position, bytes_to_write);
-    pes_position += bytes_to_write;
-    write_pointer += bytes_to_write;
+
+    // write part of the PES packet:
+    pes.WritePartial(write_pointer, pes_position, pes_bytes_to_write);
+    pes_position += pes_bytes_to_write;
+    write_pointer += pes_bytes_to_write;
+
+    // reduce PES length left to write:
+    pes_length -= pes_bytes_to_write;
+    // one less packet to write:
     --num_packets;
+    // no longer the first packet:
     first_packet = false;
+    // no more adaptation required except for filler:
+    extra_length = 0;
+
+    // Make sure we wrote exactly the packet size we should have.
+    assert(write_pointer - start_of_packet == kTsPacketSize);
   }
+
+  // Make sure we wrote exactly the amount of output data we meant to.
+  assert(write_pointer == out->data() + out->size());
 }
 }  // namespace dash2hls

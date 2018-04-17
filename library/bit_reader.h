@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Light weight bit reader.  Does not keep a copy or memory nor is it thread
+// Light weight bit reader.  Does not keep a copy of memory nor is it thread
 // safe.  Meant strictly for the simple cases of a routine needing to parse
 // a single dash box.  Trying to use it generically or in complicated
 // situations is unwise.
@@ -47,7 +47,7 @@ limitations under the License.
 namespace dash2hls {
 class BitReader {
  public:
-  BitReader(const uint8_t* bits, size_t length);
+  BitReader(const uint8_t* data, size_t length);
   bool Read(size_t bits_to_read, uint8_t* value);
   bool Read(size_t bits_to_read, uint16_t* value);
   bool Read(size_t bits_to_read, uint32_t* value);
@@ -55,7 +55,7 @@ class BitReader {
  private:
   template <typename T> bool ReadInternal(size_t bits_to_read, T* value);
 
-  const uint8_t* bits_;
+  const uint8_t* data_;
   size_t length_;
   size_t bit_position_;
   size_t byte_position_;

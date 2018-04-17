@@ -18,41 +18,21 @@ limitations under the License.
 
 #include "utilities.h"
 
+#include <assert.h>
+
 namespace {
-uint8_t GetMask(uint8_t size) {
+inline uint8_t GetMask(uint8_t size) {
   return (1 << size) - 1;
 }
 }  // namespace
 
 namespace dash2hls {
 
-BitReader::BitReader(const uint8_t* bits, size_t length): bits_(bits),
-    length_(length), bit_position_(0), byte_position_(0) {
-}
+BitReader::BitReader(const uint8_t* data, size_t length)
+    : data_(data), length_(length), bit_position_(0), byte_position_(0) {}
 
 bool BitReader::Read(size_t bits_to_read, uint8_t* value) {
-  if (bits_to_read > sizeof(*value) * 8) {
-    return false;
-  }
-  if (bits_to_read + bit_position_ + (byte_position_ * 8) > length_ * 8) {
-    return false;
-  }
-
-  if (bits_to_read + bit_position_ < 8) {
-    *value = (bits_[byte_position_] >> (8 - bit_position_ - bits_to_read))
-        & GetMask(bits_to_read);
-    bit_position_ += bits_to_read;
-    return true;
-  }
-  size_t msb_to_read = 8 - bit_position_;
-  size_t lsb_to_read = bits_to_read - msb_to_read;
-  *value = ((bits_[byte_position_] & GetMask(msb_to_read)) <<
-                (bits_to_read - msb_to_read)) |
-           ((bits_[byte_position_ + 1] >> (8 - lsb_to_read))
-                & GetMask(lsb_to_read));
-  bit_position_ = lsb_to_read;
-  ++byte_position_;
-  return true;
+  return ReadInternal(bits_to_read, value);
 }
 
 bool BitReader::Read(size_t bits_to_read, uint16_t* value) {
@@ -69,29 +49,46 @@ bool BitReader::Read(size_t bits_to_read, uint64_t* value) {
 
 template <typename T> bool BitReader::ReadInternal(size_t bits_to_read,
                                                    T* value) {
+  // The output is not large enough to hold the requested data.
   if (bits_to_read > sizeof(*value) * 8) {
     return false;
   }
+  // The buffer does not contain the requested data.
   if (bits_to_read + bit_position_ + (byte_position_ * 8) > length_ * 8) {
     return false;
   }
 
   T result = 0;
-  while (bits_to_read > 8) {
-    result <<= 8;
-    uint8_t next_byte = 0;
-    if (!Read(8, &next_byte)) {
-      return false;
+  while (bits_to_read) {
+    assert(byte_position_ < length_);
+
+    const uint8_t current_byte = data_[byte_position_];
+    const size_t bits_left_in_current_byte = 8 - bit_position_;
+
+    // How many bits we will read in this pass of the loop:
+    const size_t read_size = std::min(bits_to_read, bits_left_in_current_byte);
+
+    // Calculate the new bits we are reading:
+    const size_t shift_size = 8 - bit_position_ - read_size;
+    const uint8_t mask = GetMask(read_size);
+    const uint8_t new_bits = (current_byte >> shift_size) & mask;
+
+    // Make room for the new bits, then add them to the result:
+    result <<= read_size;
+    result |= new_bits;
+
+    // Track consumed bits:
+    bits_to_read -= read_size;
+    bit_position_ += read_size;
+
+    // Move to the next byte if we've consumed the current one completely:
+    assert(bit_position_ <= 8);
+    if (bit_position_ == 8) {
+      bit_position_ = 0;
+      ++byte_position_;
     }
-    result += next_byte;
-    bits_to_read -= 8;
   }
-  result <<= bits_to_read;
-  uint8_t next_byte = 0;
-  if (!Read(bits_to_read, &next_byte)) {
-    return false;
-  }
-  result += next_byte;
+
   *value = result;
   return true;
 }

@@ -26,6 +26,7 @@
       'target_defaults': {
         'xcode_settings': {
           'ARCHS[sdk=macosx*]': 'x86_64',
+          'MACOSX_DEPLOYMENT_TARGET': '10.10',
         },
       },
       'targets': [{
@@ -53,6 +54,10 @@
             'dependencies': [
               'DashToHls.gyp:DashToHlsLibrary',
             ],
+            'libraries': [
+              '$(SDKROOT)/System/Library/Frameworks/AVFoundation.framework',
+              '$(SDKROOT)/System/Library/Frameworks/Security.framework',
+          ],
           }],
         },
       ]],
@@ -162,6 +167,7 @@
       'type': 'executable',
       'xcode_settings': {
         'GCC_PREFIX_HEADER': 'DashToHls_osx.pch',
+        'INFOPLIST_FILE': 'UdtInfo.plist',
       },
       'dependencies': [
         'gtestlib',
@@ -175,6 +181,7 @@
           'libraries': [
             'libcrypto.dylib',
             '$(SDKROOT)/System/Library/Frameworks/AVFoundation.framework',
+            '$(SDKROOT)/System/Library/Frameworks/Security.framework',
           ],
         }],
         ['OS=="ios"', {
@@ -183,6 +190,7 @@
           ],
           'libraries': [
             '$(SDKROOT)/System/Library/Frameworks/AVFoundation.framework',
+            '$(SDKROOT)/System/Library/Frameworks/Security.framework',
           ],
         }],
       ],

@@ -46,7 +46,7 @@ class ProgramStreamOut {
   void PreprocessNalus(std::vector<uint8_t>* buffer, bool* has_aud,
                        nalu::PicType* pic_type);
   void AddNeededNalu(std::vector<uint8_t>* buffer, nalu::PicType pic_type,
-                     bool is_sync_sample);
+                     bool is_sync_sample, bool has_aud);
   void ConvertLengthToStartCode(std::vector<uint8_t>* buffer);
   size_t WriteHeader(uint8_t* buffer, uint64_t scr, uint32_t mux_rate);
   void AddHeaders(const PES& pes, bool is_sync_sample, uint64_t duration,

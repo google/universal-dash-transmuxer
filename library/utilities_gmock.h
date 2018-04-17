@@ -29,7 +29,7 @@ class MemEqMatcher {
   enum {
     kDefaultBytesToPrint = 8,
   };
-  MemEqMatcher(T* expected, size_t expected_length)
+  MemEqMatcher(const T* expected, size_t expected_length)
       : expected_(expected, expected + expected_length),
         max_bytes_to_print_(kDefaultBytesToPrint) {
   }
@@ -95,21 +95,21 @@ class MemEqMatcher {
   }
 
  private:
-  std::vector<T> expected_;
-  uint32_t max_bytes_to_print_;
+  const std::vector<T> expected_;
+  const uint32_t max_bytes_to_print_;
 };
 }  // namespace internal
 
 template <typename T>
 PolymorphicMatcher<internal::MemEqMatcher<T> > MemEq(
-    T* expected, size_t expected_length) {
+    const T* expected, size_t expected_length) {
   return MakePolymorphicMatcher(internal::MemEqMatcher<T>(expected,
                                                           expected_length));
 }
 
 template <typename T>
 PolymorphicMatcher<internal::MemEqMatcher<T> > MemEq(
-    T* expected, size_t expected_length, size_t max_bytes_to_print) {
+    const T* expected, size_t expected_length, size_t max_bytes_to_print) {
   return MakePolymorphicMatcher(internal::MemEqMatcher<T>(expected,
                                                           expected_length,
                                                           max_bytes_to_print));

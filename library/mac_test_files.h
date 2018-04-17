@@ -22,17 +22,19 @@ limitations under the License.
 
 #include <stdio.h>
 
+// TODO(seawardt): Merge ObjC tests and vectors into C++ tests where possible
+
+// TODO(seawardt): The vectors these reference are not in the repo!
 FILE* Dash2HLS_GetTestVideoFile();
 FILE* Dash2HLS_GetTestAudioFile();
 
 FILE* Dash2HLS_GetTestCencVideoFile();
 FILE* Dash2HLS_GetTestCencAudioFile();
 
+// TODO(seawardt): Neither of these is called.
+// TODO(seawardt): Should we drop these methods and the vectors they access?
 FILE* Dash2HLS_GetTestCencVideoHeader();
-FILE* Dash2HLS_GetTestCencAudioHeader();
-
 FILE* Dash2HLS_GetTestCencVideoSegment();
-FILE* Dash2HLS_GetTestCencAudioSegment();
 
 FILE* Dash2HLS_GetMp4BoxInitSegment();
 

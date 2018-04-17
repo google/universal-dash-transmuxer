@@ -63,6 +63,7 @@ class Box {
 
   const BoxContents* get_contents() const {return contents_.get();}
   const BoxType& get_type() const {return type_;}
+  size_t get_size() const {return size_;}
   // Debugging routine for diagnostics.
   std::string PrettyPrint(std::string indent) const;
 
@@ -81,7 +82,7 @@ class Box {
   size_t size_;
   BoxType type_;
   size_t bytes_read_;
-  dash2hls::shared_ptr<BoxContents> contents_;
+  shared_ptr<BoxContents> contents_;
   uint64_t stream_position_;
 };
 }  // namespace dash2hls

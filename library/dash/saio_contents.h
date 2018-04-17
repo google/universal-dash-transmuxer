@@ -41,7 +41,7 @@ class SaioContents : public FullBoxContents {
   uint32_t get_aux_info_type() {return aux_info_type_;}
   uint32_t get_aux_info_type_parameter() {return aux_info_type_parameter_;}
 
-  const std::vector<uint32_t>& get_offsets() const {return offsets_;}
+  const std::vector<uint64_t>& get_offsets() const {return offsets_;}
 
   virtual std::string PrettyPrint(std::string indent) const;
   virtual std::string BoxName() const {
@@ -57,7 +57,7 @@ class SaioContents : public FullBoxContents {
  private:
   uint32_t aux_info_type_;
   uint32_t aux_info_type_parameter_;
-  std::vector<uint32_t> offsets_;
+  std::vector<uint64_t> offsets_;
 };
 }  //  namespace dash2hls
 

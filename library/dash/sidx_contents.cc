@@ -67,23 +67,23 @@ size_t SidxContents::Parse(const uint8_t* buffer, size_t length) {
     first_offset_ = ntohlFromBuffer(ptr);
     ptr += sizeof(uint32_t);
   } else {
-    earliest_presentation_time_ = ntohlFromBuffer(ptr);
+    earliest_presentation_time_ = ntohllFromBuffer(ptr);
     ptr += sizeof(uint64_t);
-    first_offset_ = ntohlFromBuffer(ptr);
+    first_offset_ = ntohllFromBuffer(ptr);
     ptr += sizeof(uint64_t);
-    return length;
   }
   ptr += sizeof(uint16_t);
   reference_count_ = ntohsFromBuffer(ptr);
   ptr += sizeof(reference_count_);
   uint64_t location_of_moof = stream_position_ + length + first_offset_ +
       Box::kBoxHeaderSize;
-  uint32_t next_start_time = earliest_presentation_time_;
+  uint64_t next_start_time = earliest_presentation_time_;
   for (uint32_t count = 0; count < reference_count_; ++count) {
     Reference reference;
     reference.size_ = ntohlFromBuffer(ptr);
     ptr += sizeof(reference.size_);
     reference.segment_index_type_ = (reference.size_ >> 31);
+    reference.size_ &= 0x7fffffff;
     reference.subsegment_duration_ = ntohlFromBuffer(ptr);
     ptr += sizeof(reference.subsegment_duration_);
     reference.sap_delta_time = ntohlFromBuffer(ptr);

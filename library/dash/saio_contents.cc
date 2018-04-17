@@ -72,16 +72,31 @@ size_t SaioContents::Parse(const uint8_t *buffer, size_t length) {
   }
   offsets_.resize(ntohlFromBuffer(ptr));
   ptr += sizeof(uint32_t);
-  if (!EnoughBytesToParse(ptr - buffer, sizeof(uint32_t) * offsets_.size(),
-                          length)) {
-    DASH_LOG((BoxName() + " too short").c_str(),
-             "Not enough data for samples",
-             DumpMemory(buffer, length).c_str());
-    return DashParser::kParseFailure;
-  }
-  for (size_t count = 0; count < offsets_.size(); ++count) {
-    offsets_[count] = ntohlFromBuffer(ptr);
-    ptr += sizeof(uint32_t);
+
+  if (version_ == 0) {
+    if (!EnoughBytesToParse(ptr - buffer, sizeof(uint32_t) * offsets_.size(),
+                            length)) {
+      DASH_LOG((BoxName() + " too short").c_str(),
+               "Not enough data for samples",
+               DumpMemory(buffer, length).c_str());
+      return DashParser::kParseFailure;
+    }
+    for (size_t count = 0; count < offsets_.size(); ++count) {
+      offsets_[count] = ntohlFromBuffer(ptr);
+      ptr += sizeof(uint32_t);
+    }
+  } else {
+    if (!EnoughBytesToParse(ptr - buffer, sizeof(uint64_t) * offsets_.size(),
+                            length)) {
+      DASH_LOG((BoxName() + " too short").c_str(),
+               "Not enough data for samples",
+               DumpMemory(buffer, length).c_str());
+      return DashParser::kParseFailure;
+    }
+    for (size_t count = 0; count < offsets_.size(); ++count) {
+      offsets_[count] = ntohllFromBuffer(ptr);
+      ptr += sizeof(uint64_t);
+    }
   }
   return ptr - buffer;
 }

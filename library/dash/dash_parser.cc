@@ -44,6 +44,10 @@ size_t DashParser::AddToSpilloverIfNeeded(const uint8_t* buffer,
 }
 
 void DashParser::AddSpillover(const uint8_t* buffer, size_t length) {
+  // If we continue with length 0, &spillover_[current_spillover_position] may
+  // throw an exception because we're accessing the end of the vector with [].
+  if (!length) return;
+
   size_t current_spillover_position = spillover_.size();
   spillover_.resize(current_spillover_position + length);
   memcpy(&spillover_[current_spillover_position], buffer, length);

@@ -79,7 +79,7 @@ class TransportStreamOut {
   void PreprocessNalus(std::vector<uint8_t>* buffer, bool* has_aud,
                        nalu::PicType* pic_type);
   void AddNeededNalu(std::vector<uint8_t>* buffer, nalu::PicType pic_type,
-                     bool is_sync_sample);
+                     bool is_sync_sample, bool has_aud);
   void ConvertLengthToStartCode(std::vector<uint8_t>* buffer);
   void OutputRawDataOverTS(const uint8_t* data, size_t length, uint16_t pid,
                            uint16_t* continuity_counter,

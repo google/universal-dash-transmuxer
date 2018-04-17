@@ -25,7 +25,6 @@ limitations under the License.
 #include SHARED_PTR_INCLUDE
 #endif  // SHARED_PTR_INCLUDE
 
-namespace dash2hls {
 #if C98
 #ifdef SHARED_PTR_DEFINE
 SHARED_PTR_DEFINE
@@ -36,8 +35,8 @@ SHARED_PTR_DEFINE
 #error   -DSHARED_PTR_DEFINE='using boost::shared_ptr;'
 #endif  // SHARED_PTR_DEFINE
 #else  // C98
+#include <memory>
 using std::shared_ptr;
 #endif  // C98
-}  // namespace dash2hls
 
 #endif  // DASHTOHLS_COMPATIBILITY_H_

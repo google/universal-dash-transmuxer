@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "bit_reader.h"
+#include "library/bit_reader.h"
 
 #include <gtest/gtest.h>
 
@@ -39,7 +39,10 @@ namespace dash2hls {
 TEST(Dash2HLS, BitRead8) {
   BitReader reader(s_bytes, sizeof(s_bytes));
   uint8_t value;
+
+  // Can't fit 9 bits in output:
   EXPECT_FALSE(reader.Read(9, &value));
+
   EXPECT_TRUE(reader.Read(1, &value));
   EXPECT_EQ(1, value);
   EXPECT_TRUE(reader.Read(1, &value));
@@ -54,6 +57,8 @@ TEST(Dash2HLS, BitRead8) {
   EXPECT_EQ(0b1101110, value);
   EXPECT_TRUE(reader.Read(7, &value));
   EXPECT_EQ(0b1111011, value);
+
+  // Not enough bits left in buffer:
   EXPECT_FALSE(reader.Read(7, &value));
 }
 
@@ -61,10 +66,15 @@ TEST(Dash2HLS, BitRead8_Exact) {
   BitReader reader(s_bytes, sizeof(s_bytes));
   uint8_t value;
   EXPECT_TRUE(reader.Read(8, &value));
+  EXPECT_EQ(0xaa, value);
   EXPECT_TRUE(reader.Read(8, &value));
+  EXPECT_EQ(0xff, value);
   EXPECT_TRUE(reader.Read(8, &value));
+  EXPECT_EQ(0xcc, value);
   EXPECT_TRUE(reader.Read(8, &value));
+  EXPECT_EQ(0xdd, value);
   EXPECT_TRUE(reader.Read(8, &value));
+  EXPECT_EQ(0xee, value);
   EXPECT_FALSE(reader.Read(8, &value));
 }
 
@@ -107,8 +117,7 @@ TEST(Dash2HLS, BitRead64) {
   EXPECT_TRUE(reader.Read(1, &value));
   EXPECT_EQ(0, value);
   EXPECT_TRUE(reader.Read(62, &value));
-  // EXPECT_EQ throws pukes on 64 bit constants.
-  EXPECT_TRUE(0x2affffffffffffff == value);
+  EXPECT_EQ(0x2affffffffffffff, value);
   EXPECT_FALSE(reader.Read(1, &value));
 }
 }  // namespace dash2hls

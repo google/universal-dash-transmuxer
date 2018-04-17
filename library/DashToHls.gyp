@@ -34,19 +34,21 @@
             'dash_to_hls_api_avframework.mm',
           ],
         }],
-        ['OS=="ios"', {
+        ['OS=="ios" or OS=="tvos"', {
           'defines': [
             'USE_AVFRAMEWORK',
           ],
           'sources': [
             'dash_to_hls_api_avframework.h',
             'dash_to_hls_api_avframework.mm',
+            'UDTApi.h',
           ],
         }],
       ],
       'sources': [
         '../include/DashToHlsApi.h',
         '../include/DashToHlsApiAVFramework.h',
+        '../include/UDTApi.h',
         'dash_to_hls_api.cc',
         'dash_to_hls_session.h',
         'utilities.cc',

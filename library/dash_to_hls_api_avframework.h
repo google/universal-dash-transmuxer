@@ -22,8 +22,6 @@
 struct DashToHlsSession;
 
 namespace dash2hls {
-  // Have we set up a key to cause reencryption?
-  bool is_encrypting();
   // Encrypt one segment with the global key or return false if encryption
   // failed.
   bool Encrypt(const DashToHlsSession* session, std::vector<uint8_t>* segment);

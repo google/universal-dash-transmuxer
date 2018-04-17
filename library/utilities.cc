@@ -23,8 +23,6 @@ const size_t kBufferSize = 1024;
 const uint32_t INIT_CRC32 = 0xffffffff;
 }  // namespace
 
-using std::string;
-
 namespace dash2hls {
 
 bool g_verbose_pretty_print = 0;
@@ -46,66 +44,81 @@ void htonllToBuffer(uint64_t value, uint8_t* buffer) {
   htonlToBuffer(value & 0xffffffff, buffer + sizeof(uint32_t));
 }
 
-string PrettyPrintValue(int8_t value) {
+size_t PositionOfZeroInBuffer(const uint8_t* buffer, size_t buffer_length) {
+  for (size_t idx = 0; idx < buffer_length; ++idx) {
+    if (buffer[idx] == 0) {
+      return idx;
+    }
+  }
+  return -1;
+}
+
+std::string PrettyPrintValue(int8_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%d", value);
   return buffer;
 }
 
-string PrettyPrintValue(int16_t value) {
+std::string PrettyPrintValue(int16_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%d", value);
   return buffer;
 }
 
-string PrettyPrintValue(int32_t value) {
+std::string PrettyPrintValue(int32_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%d", value);
   return buffer;
 }
 
-string PrettyPrintValue(uint8_t value) {
+std::string PrettyPrintValue(uint8_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%u", value);
   return buffer;
 }
 
-string PrettyPrintValue(uint16_t value) {
+std::string PrettyPrintValue(uint16_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%u", value);
   return buffer;
 }
 
-string PrettyPrintValue(uint32_t value) {
+std::string PrettyPrintValue(uint32_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%u", value);
   return buffer;
 }
 
-#if !C98
-string PrettyPrintValue(size_t value) {
+#if !C98 && !defined(GOOGLE_GLIBCXX_VERSION) || defined(__APPLE__)
+std::string PrettyPrintValue(size_t value) {
   char buffer[kBufferSize];
   snprintf(buffer, sizeof(buffer), "%zu", value);
   return buffer;
 }
 #endif
 
-string PrettyPrintValue(uint64_t value) {
+std::string PrettyPrintValue(uint64_t value) {
   char buffer[kBufferSize];
-  snprintf(buffer, sizeof(buffer), "%llu", value);
+  snprintf(buffer, sizeof(buffer), "%llu", static_cast<long long>(value));
   return buffer;
 }
 
-string PrettyPrintValue(int64_t value) {
+std::string PrettyPrintValue(int64_t value) {
   char buffer[kBufferSize];
-  snprintf(buffer, sizeof(buffer), "%lld", value);
+  snprintf(buffer, sizeof(buffer), "%lld", static_cast<long long>(value));
+  return buffer;
+}
+
+std::string PrettyPrintValue(double value) {
+  char buffer[kBufferSize];
+  snprintf(buffer, sizeof(buffer), "%f", value);
   return buffer;
 }
 
 // PrettyPrintBuffer does the exact same thing as DumpMemory, but they are
 // used in different ways.  PrettyPrintValue is used for diagnostics and
 // with other PrettyPrintValue calls.  DumpMemory is used in error handling.
-string PrettyPrintBuffer(const uint8_t* buffer, size_t value) {
+std::string PrettyPrintBuffer(const uint8_t* buffer, size_t value) {
   return DumpMemory(buffer, value);
 }
 

@@ -37,7 +37,7 @@ class TrunContents : public FullBoxContents {
     uint32_t sample_duration_;
     uint32_t sample_size_;
     uint32_t sample_flags_;
-    uint32_t sample_composition_time_offset_;
+    int64_t sample_composition_time_offset_;
   };
 
   explicit TrunContents(uint64_t stream_position)

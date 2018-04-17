@@ -24,17 +24,26 @@ limitations under the License.
 #include "library/dash/avc1_contents.h"
 #include "library/dash/avcc_contents.h"
 #include "library/dash/box_contents.h"
+#include "library/dash/cbmp_contents.h"
 #include "library/dash/dash_parser.h"
 #include "library/dash/elst_contents.h"
+#include "library/dash/emsg_contents.h"
+#include "library/dash/equi_contents.h"
 #include "library/dash/esds_contents.h"
 #include "library/dash/mdat_contents.h"
 #include "library/dash/mdhd_contents.h"
 #include "library/dash/mp4a_contents.h"
+#include "library/dash/mshp_contents.h"
 #include "library/dash/mvhd_contents.h"
+#include "library/dash/prft_contents.h"
+#include "library/dash/prhd_contents.h"
 #include "library/dash/pssh_contents.h"
 #include "library/dash/saio_contents.h"
 #include "library/dash/saiz_contents.h"
 #include "library/dash/sidx_contents.h"
+#include "library/dash/sbgp_contents.h"
+#include "library/dash/sgpd_contents.h"
+#include "library/dash/st3d_contents.h"
 #include "library/dash/stsd_contents.h"
 #include "library/dash/stsz_contents.h"
 #include "library/dash/tenc_contents.h"
@@ -44,8 +53,6 @@ limitations under the License.
 #include "library/dash/trun_contents.h"
 #include "library/dash/unknown_contents.h"
 #include "library/utilities.h"
-
-using std::string;
 
 namespace dash2hls {
 
@@ -86,9 +93,11 @@ void Box::CreateContentsObject() {
     case BoxType::kBox_moof:
     case BoxType::kBox_moov:
     case BoxType::kBox_mvex:
+    case BoxType::kBox_proj:
     case BoxType::kBox_schi:
     case BoxType::kBox_sinf:
     case BoxType::kBox_stbl:
+    case BoxType::kBox_sv3d:
     case BoxType::kBox_traf:
     case BoxType::kBox_trak:
       contents_.reset(new BoxContents(type_.asUint32(), stream_position_));
@@ -100,8 +109,17 @@ void Box::CreateContentsObject() {
     case BoxType::kBox_avcC:
       contents_.reset(new AvcCContents(stream_position_));
       break;
+    case BoxType::kBox_cbmp:
+      contents_.reset(new CbmpContents(stream_position_));
+      break;
     case BoxType::kBox_elst:
       contents_.reset(new ElstContents(stream_position_));
+      break;
+    case BoxType::kBox_emsg:
+      contents_.reset(new EmsgContents(stream_position_));
+      break;
+    case BoxType::kBox_equi:
+      contents_.reset(new EquiContents(stream_position_));
       break;
     case BoxType::kBox_esds:
       contents_.reset(new EsdsContents(stream_position_));
@@ -116,11 +134,21 @@ void Box::CreateContentsObject() {
     case BoxType::kBox_mdhd:
       contents_.reset(new MdhdContents(stream_position_));
       break;
+    case BoxType::kBox_mshp:
+    case BoxType::kBox_ytmp:
+      contents_.reset(new MshpContents(stream_position_));
+      break;
     case BoxType::kBox_mvhd:
       contents_.reset(new MvhdContents(stream_position_));
       break;
     case BoxType::kBox_sidx:
       contents_.reset(new SidxContents(stream_position_));
+      break;
+    case BoxType::kBox_prft:
+      contents_.reset(new PrftContents(stream_position_));
+      break;
+    case BoxType::kBox_prhd:
+      contents_.reset(new PrhdContents(stream_position_));
       break;
     case BoxType::kBox_pssh:
       contents_.reset(new PsshContents(stream_position_));
@@ -130,6 +158,15 @@ void Box::CreateContentsObject() {
       break;
     case BoxType::kBox_saiz:
       contents_.reset(new SaizContents(stream_position_));
+      break;
+    case BoxType::kBox_sbgp:
+      contents_.reset(new SbgpContents(stream_position_));
+      break;
+    case BoxType::kBox_sgpd:
+      contents_.reset(new SgpdContents(stream_position_));
+      break;
+    case BoxType::kBox_st3d:
+      contents_.reset(new St3dContents(stream_position_));
       break;
     case BoxType::kBox_stsd:
       contents_.reset(new StsdContents(stream_position_));
@@ -203,15 +240,16 @@ size_t Box::Parse(const uint8_t* buffer, size_t length) {
   return length - bytes_left;
 }
 
-string Box::PrettyPrint(std::string indent) const {
+std::string Box::PrettyPrint(std::string indent) const {
   switch (state_) {
     case kInitialState: return "Unparsed Box\n";
     case kReadingType: return "Unparsed Box\n";
     case kReadingBytes:
-      return string("Box<") + type_.PrettyPrint(indent + "  ") + ":" +
+      return PrettyPrintValue(stream_position_) + std::string("-Box<") +
+          type_.PrettyPrint(indent + "  ") + ":" +
           PrettyPrintValue(size_) + "> still reading";
     case kParsed:
-      return PrettyPrintValue(stream_position_) + string("-Box<") +
+      return PrettyPrintValue(stream_position_) + std::string("-Box<") +
           type_.PrettyPrint(indent + " ") + ":" + PrettyPrintValue(size_) +
           " " + contents_->BoxName() + "> " +
           contents_->PrettyPrint(indent + " ");

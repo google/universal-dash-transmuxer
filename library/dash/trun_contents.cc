@@ -138,8 +138,14 @@ size_t TrunContents::Parse(const uint8_t *buffer, size_t length) {
                  DumpMemory(buffer, length).c_str());
         return DashParser::kParseFailure;
       }
-      run.sample_composition_time_offset_ = ntohlFromBuffer(ptr);
-      ptr += sizeof(run.sample_composition_time_offset_);
+      if (version_ == 0) {
+        uint32_t offset = ntohlFromBuffer(ptr);
+        run.sample_composition_time_offset_ = offset;
+      } else {
+        int32_t offset = ntohlFromBuffer(ptr);
+        run.sample_composition_time_offset_ = offset;
+      }
+      ptr += sizeof(int32_t);
     }
     track_runs_.push_back(run);
   }

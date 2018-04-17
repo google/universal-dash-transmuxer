@@ -12,6 +12,7 @@
 namespace dash2hls {
 class AvcDecoderConfigurationRecord {
  public:
+  virtual ~AvcDecoderConfigurationRecord() {}
   const std::vector<std::vector<uint8_t> >&
       get_sequence_parameter_sets() const {return sequence_parameter_sets_;}
   const std::vector<std::vector<uint8_t> >&

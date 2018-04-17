@@ -115,6 +115,13 @@ DashToHlsStatus DashToHls_ParseSidx(struct DashToHlsSession* session,
                                     uint64_t length,
                                     struct DashToHlsIndex** index);
 
+// Returns the |pts| and the |duration| of a dash |bytes|.
+DashToHlsStatus DashToHls_ParseSegmentPTS(struct DashToHlsSession* session,
+                                          const uint8_t* bytes,
+                                          uint64_t length,
+                                          uint64_t* pts,
+                                          uint64_t* duration);
+
 // The pssh is usually handled out of band.  To simplify things this call
 // only extracts a pssh and calls the pssh callback.
 //
@@ -131,7 +138,7 @@ DashToHlsStatus DashToHls_ParseLivePssh(struct DashToHlsSession* session,
 DashToHlsStatus DashToHls_ParseLive(struct DashToHlsSession* session,
                                     const uint8_t* bytes,
                                     uint64_t length,
-                                    uint64_t segment_number,
+                                    uint32_t segment_number,
                                     const uint8_t** hls_segment,
                                     size_t* hls_length);
 

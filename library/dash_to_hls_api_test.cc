@@ -63,12 +63,12 @@ const uint8_t kExpectedPssh[] = {
 
 const size_t kDashHeaderRead = 10000;  // Enough to get the sidx.
 uint32_t kPsshContext = 100;
-uint32_t kDecryptionContext = 101;
 }  // namespace
 
 namespace dash2hls {
 namespace internal {
 DashToHlsStatus ProcessAvcc(const AvcCContents* avcc,
+                            uint8_t stream_number,
                             std::vector<uint8_t>* sps_pps);
 }  // namespace internal
 
@@ -80,7 +80,7 @@ TEST(DashToHlsApi, ProcessAvcc) {
   const AvcCContents *avcc =
       reinterpret_cast<const AvcCContents*>(box->get_contents());
   std::vector<uint8_t> sps_pps;
-  EXPECT_EQ(kDashToHlsStatus_OK, internal::ProcessAvcc(avcc, &sps_pps));
+  EXPECT_EQ(kDashToHlsStatus_OK, internal::ProcessAvcc(avcc, 0, &sps_pps));
   EXPECT_THAT(std::make_pair(&sps_pps[0], sps_pps.size()),
               testing::MemEq(kSpsPpsExpected, sizeof(kSpsPpsExpected)));
 }
@@ -96,10 +96,6 @@ DashToHlsStatus PsshHandler(void* context, const uint8_t* pssh,
 // TODO(justsomeguy) There are test vectors from the widevine code that need
 // to be ported.  The Decryption handler has to be tested before it can be
 // used to test the actual product.
-namespace {
-const uint8_t video_key[] = {0x6f, 0xc9, 0x6f, 0xe6, 0x28, 0xa2, 0x65, 0xb1,
-                             0x3a, 0xed, 0xde, 0xc0, 0xbc, 0x42, 0x1f, 0x4d};
-}  // namespace
 
 TEST(DashToHlsApi, ParseDash) {
   DashToHlsSession* session = nullptr;
@@ -188,6 +184,22 @@ TEST(DashToHlsApi, ParseDashList) {
   ASSERT_EQ(kDashToHlsStatus_NeedMoreData,
             DashToHls_ParseLive(session, buffer, bytes_read, 0,
                                 &hls_segment, &hls_length));
+}
+
+extern "C" void
+DashToHls_TestContent(unsigned char* content, size_t length);
+TEST(DashToHlsApi, TestTheTestRoutine) {
+  FILE* file = Dash2HLS_GetTestVideoFile();
+  ASSERT_NE(reinterpret_cast<FILE*>(0), file);
+  size_t bytes_read = 0;
+  fseek(file, 0, SEEK_END);
+  size_t bytes_to_read = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  std::vector<uint8_t> buffer(bytes_to_read);
+
+  bytes_read = fread(buffer.data(), 1, bytes_to_read, file);
+  ASSERT_EQ(bytes_to_read, bytes_read);
+  DashToHls_TestContent(buffer.data(), buffer.size());
 }
 
 namespace internal {

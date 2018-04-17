@@ -53,6 +53,10 @@ inline void htonlToBuffer(uint32_t value, uint8_t* buffer) {
 uint64_t ntohllFromBuffer(const uint8_t* buffer);
 void htonllToBuffer(uint64_t value, uint8_t* buffer);
 
+// Returns position of the first byte in the buffer that is 0x00. Returns -1 if
+// a 0x00 bytes could not be found.
+size_t PositionOfZeroInBuffer(const uint8_t* buffer, size_t buffer_length);
+
 // Determines if there are enough bytes left to continue parsing.
 // Even though it's a trivial routine it documents the code by giving it an
 // obvious name.  Also avoids size_t vs long comparison warnings.
@@ -71,6 +75,7 @@ std::string PrettyPrintValue(uint16_t);
 std::string PrettyPrintValue(uint32_t);
 std::string PrettyPrintValue(size_t);
 std::string PrettyPrintValue(uint64_t);
+std::string PrettyPrintValue(double);
 std::string PrettyPrintBuffer(const uint8_t* buffer, size_t length);
 
 // verbosity when debugging.

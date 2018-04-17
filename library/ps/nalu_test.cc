@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <gtest/gtest.h>
 
+#include "library/utilities_gmock.h"
 #include "library/ps/nalu.h"
 
 namespace {
@@ -157,7 +158,8 @@ TEST(DashToHlsPs, PreprocessNalus) {
                                           sizeof(kFillerNalu), kNaluLengthSize,
                                           &has_aud, &pic_type);
   EXPECT_EQ(sizeof(kIdrSliceNalu), new_size);
-  EXPECT_EQ(0, memcmp(buffer, kIdrSliceNalu, sizeof(kIdrSliceNalu)));
+  EXPECT_THAT(std::make_pair(buffer, sizeof(kIdrSliceNalu)),
+              testing::MemEq(kIdrSliceNalu, sizeof(kIdrSliceNalu)));
   EXPECT_EQ(false, has_aud);
 
   // padding last.
@@ -177,9 +179,11 @@ TEST(DashToHlsPs, PreprocessNalus) {
                                    sizeof(kFillerNalu), kNaluLengthSize,
                                    &has_aud, &pic_type);
   EXPECT_EQ(sizeof(kIdrSliceNalu) * 2, new_size);
-  EXPECT_EQ(0, memcmp(buffer, kIdrSliceNalu, sizeof(kIdrSliceNalu)));
-  EXPECT_EQ(0, memcmp(buffer + sizeof(kIdrSliceNalu), kIdrSliceNalu,
-                      sizeof(kIdrSliceNalu)));
+  EXPECT_THAT(std::make_pair(buffer, sizeof(kIdrSliceNalu)),
+              testing::MemEq(kIdrSliceNalu, sizeof(kIdrSliceNalu)));
+  EXPECT_THAT(std::make_pair(buffer + sizeof(kIdrSliceNalu),
+                             sizeof(kIdrSliceNalu)),
+              testing::MemEq(kIdrSliceNalu, sizeof(kIdrSliceNalu)));
   EXPECT_EQ(false, has_aud);
 
   // multiple padding.
@@ -195,9 +199,11 @@ TEST(DashToHlsPs, PreprocessNalus) {
                                    sizeof(kFillerNalu) * 3, kNaluLengthSize,
                                    &has_aud, &pic_type);
   EXPECT_EQ(sizeof(kIdrSliceNalu) * 2, new_size);
-  EXPECT_EQ(0, memcmp(buffer, kIdrSliceNalu, sizeof(kIdrSliceNalu)));
-  EXPECT_EQ(0, memcmp(buffer + sizeof(kIdrSliceNalu), kIdrSliceNalu,
-                      sizeof(kIdrSliceNalu)));
+  EXPECT_THAT(std::make_pair(buffer, sizeof(kIdrSliceNalu)),
+              testing::MemEq(kIdrSliceNalu, sizeof(kIdrSliceNalu)));
+  EXPECT_THAT(std::make_pair(buffer + sizeof(kIdrSliceNalu),
+                             sizeof(kIdrSliceNalu)),
+              testing::MemEq(kIdrSliceNalu, sizeof(kIdrSliceNalu)));
   EXPECT_EQ(false, has_aud);
 
   // bad sizes
@@ -253,10 +259,10 @@ TEST(DashToHlsPs, ReplaceLengthWithStartCode) {
   memcpy(expected_output + sizeof(kAudNaluStartCode) * 2,
          kAudNaluStartCode, sizeof(kAudNaluStartCode));
 
-
   bool success = nalu::ReplaceLengthWithStartCode(input, sizeof(input));
   EXPECT_TRUE(success);
-  EXPECT_FALSE(memcmp(input, expected_output, sizeof(input)));
+  EXPECT_THAT(std::make_pair(input, sizeof(input)),
+              testing::MemEq(expected_output, sizeof(expected_output)));
 
   success = nalu::ReplaceLengthWithStartCode(input, sizeof(input) - 1);
   EXPECT_FALSE(success);
