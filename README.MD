@@ -6,17 +6,18 @@ See #19.  We apologize for any inconvenience.
 
 If you do not know H.264 then this code can be quite confusing.
 
-CONTRIBUTIONS
+### CONTRIBUTIONS
+
 All non-googlers must sign a Contributing License Agreement (CLA).
 
-CUSTOMIZING
+### CUSTOMIZING
 
   Common.gypi must be customized.
   library/mac_test_files.mm needs to be populated with your content.
   DashToHlsTools.gyp needs to add paths, read the comments in that file.
 
 
-H.264 QUICK TUTORIAL.
+### H.264 QUICK TUTORIAL.
 
 H.264, or mpeg-4 is actually 15+ specs ranging from how to compress bits to
 how to package a video for transport.  H.264 can also be placed in Mpeg-2
@@ -46,7 +47,7 @@ The basic process is to find the DASH samples, massage the nalus, set up
 Mpeg2 nalus for the codecs, then write out PS segments.  Take the PS segments
 and pack them into TS segments.
 
-CLOCKS IN H.264
+### CLOCKS IN H.264
 
 There are four clock pointers in H.264 delivered over Transport Stream.
 System Clock Reference (SCR)
