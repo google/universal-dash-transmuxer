@@ -1,3 +1,9 @@
+# NO LONGER MAINTAINED BY GOOGLE
+
+See #19.  We apologize for any inconvenience.
+
+-----
+
 If you do not know H.264 then this code can be quite confusing.
 
 CONTRIBUTIONS
